@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use uuid::Uuid;
+use anyhow::{Result, Context};
 
 mod config;
 mod utils;
@@ -172,10 +173,145 @@ struct Project {
     git_updated_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 struct MachineMetadata {
     last_accessed: std::collections::HashMap<Uuid, DateTime<Utc>>,
     access_counts: std::collections::HashMap<Uuid, u32>,
+}
+
+fn handle_error(error: anyhow::Error, context: &str) {
+    eprintln!("❌ {}: {}", context, error);
+    std::process::exit(1);
+}
+
+fn suggest_similar_projects(config: &Config, target: &str) -> Vec<String> {
+    config.projects.values()
+        .map(|p| &p.name)
+        .filter(|name| {
+            // Simple similarity check - contains substring or starts with same chars
+            name.to_lowercase().contains(&target.to_lowercase()) ||
+            target.to_lowercase().contains(&name.to_lowercase()) ||
+            name.chars().take(3).collect::<String>().to_lowercase() == 
+            target.chars().take(3).collect::<String>().to_lowercase()
+        })
+        .map(|s| s.clone())
+        .collect()
+}
+
+fn validate_path(path: &PathBuf) -> Result<PathBuf> {
+    if !path.exists() {
+        anyhow::bail!(
+            "Path does not exist: {}\n\n💡 Suggestions:\n  - Check if the path is correct\n  - Create the directory first: mkdir -p {}",
+            path.display(),
+            path.display()
+        );
+    }
+
+    if !path.is_dir() {
+        anyhow::bail!(
+            "Path is not a directory: {}\n\n💡 Please provide a directory path, not a file.",
+            path.display()
+        );
+    }
+
+    path.canonicalize()
+        .with_context(|| format!("Failed to resolve absolute path for: {}", path.display()))
+}
+
+async fn switch_to_project(config: &mut Config, name: &str, no_editor: bool) -> Result<(), String> {
+    if config.projects.is_empty() {
+        println!("📋 No projects found");
+        println!("\n💡 Add your first project with: pm add <path>");
+        return Err("No projects found".to_string());
+    }
+
+    if let Some(project) = config.find_project_by_name(name) {
+        let project_id = project.id;
+        let project_name = project.name.clone();
+        let project_path = project.path.clone();
+
+        // Check if project path still exists
+        if !project_path.exists() {
+            eprintln!("❌ Project path no longer exists: {}", project_path.display());
+            eprintln!("\n💡 Suggestions:");
+            eprintln!("  - Update the project path");
+            eprintln!("  - Remove the project: pm project remove {}", project_name);
+            return Err("Project path does not exist".to_string());
+        }
+
+        // Record access before switching
+        config.record_project_access(project_id);
+        
+        // Get access info for display
+        let (last_accessed, access_count) = config.get_project_access_info(project_id);
+        
+        println!("🔄 Switching to project: {}", project_name);
+        println!("📊 Access count: {} times", access_count);
+        
+        if let Some(last_time) = last_accessed {
+            let now = Utc::now();
+            let duration = now.signed_duration_since(last_time);
+            
+            if duration.num_minutes() < 60 {
+                println!("⏰ Last accessed: {} minutes ago", duration.num_minutes());
+            } else if duration.num_hours() < 24 {
+                println!("⏰ Last accessed: {} hours ago", duration.num_hours());
+            } else {
+                println!("⏰ Last accessed: {} days ago", duration.num_days());
+            }
+        }
+        
+        if let Err(e) = std::env::set_current_dir(&project_path) {
+            eprintln!("❌ Failed to change directory: {}", e);
+            eprintln!("   Path: {}", project_path.display());
+            return Err("Failed to change directory".to_string());
+        }
+        
+        // Save config with updated access tracking
+        if let Err(e) = save_config(&config).await {
+            eprintln!("⚠️  Failed to save access tracking: {}", e);
+            // Continue anyway, don't fail the switch operation
+        }
+        
+        println!("📂 Working directory: {}", project_path.display());
+
+        if !no_editor {
+            println!("🚀 Opening editor...");
+            let mut cmd = std::process::Command::new("hx");
+            match cmd.status() {
+                Ok(status) => {
+                    if !status.success() {
+                        eprintln!("⚠️  Editor exited with status: {}", status);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("❌ Failed to execute editor 'hx': {}", e);
+                    eprintln!("\n💡 Suggestions:");
+                    eprintln!("  - Install Helix editor: https://helix-editor.com/");
+                    eprintln!("  - Use --no-editor flag to skip editor");
+                    eprintln!("  - Set EDITOR environment variable to your preferred editor");
+                }
+            }
+        } else {
+            println!("✅ Project switched (editor not opened)");
+        }
+
+        Ok(())
+    } else {
+        eprintln!("❌ Project not found: '{}'", name);
+        
+        let suggestions = suggest_similar_projects(&config, name);
+        if !suggestions.is_empty() {
+            eprintln!("\n💡 Did you mean one of these?");
+            for suggestion in suggestions.iter().take(3) {
+                eprintln!("  - {}", suggestion);
+            }
+        } else {
+            eprintln!("\n💡 Use 'pm ls' to see all available projects");
+        }
+        
+        Err("Project not found".to_string())
+    }
 }
 
 fn parse_time_duration(duration_str: &str) -> Result<Duration, String> {
@@ -214,7 +350,13 @@ async fn main() {
 
     match &cli.command {
         Commands::Add { path, name, tags, description } => {
-            let mut config = load_config().await.unwrap();
+            let mut config = match load_config().await {
+                Ok(config) => config,
+                Err(e) => {
+                    handle_error(e, "Failed to load configuration");
+                    return;
+                }
+            };
 
             let resolved_path = if path.is_absolute() {
                 path.clone()
@@ -222,31 +364,83 @@ async fn main() {
                 config.projects_root_dir.join(path)
             };
 
-            let absolute_path = resolved_path.canonicalize().unwrap();
-            println!("Adding project at: {:?}", absolute_path);
+            let absolute_path = match validate_path(&resolved_path) {
+                Ok(path) => path,
+                Err(e) => {
+                    handle_error(e, "Invalid project path");
+                    return;
+                }
+            };
+
+            // Check for duplicate projects
+            if config.projects.values().any(|p| p.path == absolute_path) {
+                eprintln!("❌ Project already exists at path: {}", absolute_path.display());
+                eprintln!("\n💡 Use 'pm ls' to see all projects");
+                return;
+            }
 
             let project_name = name.clone().unwrap_or_else(|| {
-                absolute_path.file_name().unwrap().to_str().unwrap().to_string()
+                absolute_path.file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("unnamed-project")
+                    .to_string()
             });
+
+            // Check for duplicate project names
+            if config.projects.values().any(|p| p.name == project_name) {
+                eprintln!("❌ Project with name '{}' already exists", project_name);
+                eprintln!("\n💡 Use a different name with: pm add {} --name <new-name>", path.display());
+                return;
+            }
+
+            println!("📂 Adding project at: {}", absolute_path.display());
+
+            let git_updated_at = match get_last_git_commit_time(&absolute_path) {
+                Ok(time) => time,
+                Err(_) => {
+                    println!("⚠️  Not a Git repository or no commits found");
+                    None
+                }
+            };
 
             let project = Project {
                 id: Uuid::new_v4(),
-                name: project_name,
+                name: project_name.clone(),
                 path: absolute_path.clone(),
                 tags: tags.clone(),
                 description: description.clone(),
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
-                git_updated_at: get_last_git_commit_time(&absolute_path).unwrap(),
+                git_updated_at,
             };
 
             config.add_project(project);
-            save_config(&config).await.unwrap();
+            
+            if let Err(e) = save_config(&config).await {
+                handle_error(e, "Failed to save configuration");
+                return;
+            }
 
-            println!("✅ Project '{}' added successfully.", config.projects.get(&config.projects.keys().last().unwrap()).unwrap().name);
+            println!("✅ Project '{}' added successfully!", project_name);
+            if !tags.is_empty() {
+                println!("🏷️  Tags: {}", tags.join(", "));
+            }
         }
         Commands::List { tags, tags_any, recent, limit, detailed } => {
-            let mut config = load_config().await.unwrap();
+            let mut config = match load_config().await {
+                Ok(config) => config,
+                Err(e) => {
+                    handle_error(e, "Failed to load configuration");
+                    return;
+                }
+            };
+
+            if config.projects.is_empty() {
+                println!("📋 No projects found");
+                println!("\n💡 Add your first project with: pm add <path>");
+                return;
+            }
+
             let mut projects: Vec<&mut Project> = config.projects.values_mut().collect();
 
             // Update git_updated_at for projects in the background
@@ -322,7 +516,23 @@ async fn main() {
                 filtered_projects.truncate(*limit_count);
             }
 
-            println!("Active Projects ({} found)", filtered_projects.len());
+            if filtered_projects.is_empty() {
+                println!("📋 No projects match your filters");
+                println!("\n💡 Try:");
+                if !tags.is_empty() {
+                    println!("  - Using fewer tags: pm ls -t {}", tags[0]);
+                }
+                if !tags_any.is_empty() {
+                    println!("  - Different tags: pm ls --tags-any {}", tags_any.join(","));
+                }
+                if recent.is_some() {
+                    println!("  - Longer time period: pm ls -r 30d");
+                }
+                println!("  - No filters: pm ls");
+                return;
+            }
+
+            println!("📋 Active Projects ({} found)", filtered_projects.len());
             for project in filtered_projects {
                 if *detailed {
                     // Detailed view
@@ -362,23 +572,15 @@ async fn main() {
             }
         }
         Commands::Switch { name, no_editor } => {
-            let config = load_config().await.unwrap();
-            if let Some(project) = config.find_project_by_name(name) {
-                println!("Switching to project: {}", project.name);
-                std::env::set_current_dir(&project.path).unwrap();
-                println!("Changed directory to: {:?}", &project.path);
-
-                if !no_editor {
-                    println!("Opening editor...");
-                    let mut cmd = std::process::Command::new("hx");
-                    cmd.status().expect("Failed to execute editor.");
-                } else {
-                    println!("Editor not opened due to --no-editor flag.");
+            let mut config = match load_config().await {
+                Ok(config) => config,
+                Err(e) => {
+                    handle_error(e, "Failed to load configuration");
+                    return;
                 }
+            };
 
-            } else {
-                println!("❌ Project not found: {}", name);
-            }
+            let _ = switch_to_project(&mut config, name, *no_editor).await;
         }
         Commands::Project(project_command) => match project_command {
             ProjectCommands::Add { path, name, tags, description } => {
@@ -530,23 +732,15 @@ async fn main() {
                 }
             }
             ProjectCommands::Switch { name, no_editor } => {
-                let config = load_config().await.unwrap();
-                if let Some(project) = config.find_project_by_name(name) {
-                    println!("Switching to project: {}", project.name);
-                    std::env::set_current_dir(&project.path).unwrap();
-                    println!("Changed directory to: {:?}", &project.path);
-
-                    if !no_editor {
-                        println!("Opening editor...");
-                        let mut cmd = std::process::Command::new("hx");
-                        cmd.status().expect("Failed to execute editor.");
-                    } else {
-                        println!("Editor not opened due to --no-editor flag.");
+                let mut config = match load_config().await {
+                    Ok(config) => config,
+                    Err(e) => {
+                        handle_error(e, "Failed to load configuration");
+                        return;
                     }
+                };
 
-                } else {
-                    println!("❌ Project not found: {}", name);
-                }
+                let _ = switch_to_project(&mut config, name, *no_editor).await;
             }
         },
         Commands::Tag { action } => match action {
@@ -570,33 +764,75 @@ async fn main() {
             }
         },
         Commands::Init {} => {
-            let config_path = get_config_path().unwrap();
+            let config_path = match get_config_path() {
+                Ok(path) => path,
+                Err(e) => {
+                    handle_error(e, "Failed to get configuration path");
+                    return;
+                }
+            };
+
             if config_path.exists() {
-                println!("❌ pm이 이미 초기화되었습니다. 설정 파일: {:?}", config_path);
+                println!("✅ PM is already initialized");
+                println!("📁 Configuration file: {}", config_path.display());
+                println!("\n💡 To reinitialize, delete the config file first:");
+                println!("   rm {}", config_path.display());
                 return;
             }
 
-            let github_username = inquire::Text::new("GitHub username:")
-                .prompt()
-                .expect("Failed to get GitHub username");
+            println!("🚀 Initializing PM...\n");
 
-            let projects_root_dir_str = inquire::Text::new("Projects root directory path:")
+            let github_username = match inquire::Text::new("GitHub username:")
+                .prompt() {
+                Ok(username) => username,
+                Err(e) => {
+                    eprintln!("❌ Failed to get GitHub username: {}", e);
+                    eprintln!("\n💡 You can also set this later in the config file");
+                    return;
+                }
+            };
+
+            let projects_root_dir_str = match inquire::Text::new("Projects root directory path:")
                 .with_default("~/workspace")
-                .prompt()
-                .expect("Failed to get projects root directory path");
+                .prompt() {
+                Ok(path) => path,
+                Err(e) => {
+                    eprintln!("❌ Failed to get projects root directory: {}", e);
+                    return;
+                }
+            };
 
             let projects_root_dir = PathBuf::from(shellexpand::tilde(&projects_root_dir_str).to_string());
 
+            // Validate and create the projects root directory if it doesn't exist
+            if !projects_root_dir.exists() {
+                println!("📁 Creating projects root directory: {}", projects_root_dir.display());
+                if let Err(e) = std::fs::create_dir_all(&projects_root_dir) {
+                    eprintln!("❌ Failed to create directory: {}", e);
+                    eprintln!("   Path: {}", projects_root_dir.display());
+                    return;
+                }
+            }
+
             let config = Config {
-                github_username,
-                projects_root_dir,
+                github_username: github_username.clone(),
+                projects_root_dir: projects_root_dir.clone(),
                 ..Default::default()
             };
 
-            save_config(&config).await.unwrap();
+            if let Err(e) = save_config(&config).await {
+                handle_error(e, "Failed to save configuration");
+                return;
+            }
 
-            println!("✅ pm이 성공적으로 초기화되었습니다.");
-            println!("   설정 파일: {:?}", config_path);
+            println!("\n✅ PM initialized successfully!");
+            println!("👤 GitHub username: {}", github_username);
+            println!("📁 Projects root: {}", projects_root_dir.display());
+            println!("⚙️  Config file: {}", config_path.display());
+            println!("\n🎯 Next steps:");
+            println!("  pm add <path>     # Add your first project");
+            println!("  pm ls             # List projects");
+            println!("  pm s <name>       # Switch to project");
         }
     }
 }
