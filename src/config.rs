@@ -1,4 +1,5 @@
 use crate::{Project, MachineMetadata};
+use crate::constants::*;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -17,8 +18,8 @@ pub struct Config {
 
 pub fn get_config_path() -> Result<PathBuf> {
     let config_dir = dirs::config_dir().context("Failed to find config directory")?;
-    let pm_dir = config_dir.join("pm");
-    Ok(pm_dir.join("config.json"))
+    let pm_dir = config_dir.join(APP_NAME);
+    Ok(pm_dir.join(CONFIG_FILENAME))
 }
 
 pub async fn load_config() -> Result<Config> {
