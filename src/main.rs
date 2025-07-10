@@ -242,8 +242,6 @@ async fn main() {
                 return;
             }
 
-            println!("pm을 초기화합니다...");
-
             let github_username = inquire::Text::new("GitHub username:")
                 .prompt()
                 .expect("Failed to get GitHub username");
