@@ -1,13 +1,22 @@
-# Project Manager
+# PM (Project Manager)
 
-A project management application.
+A fast, terminal-based project management CLI tool written in Rust. PM helps developers efficiently manage and switch between multiple projects with zero friction.
+
+## Features
+
+- **Fast project switching**: Switch between projects in under 1 second
+- **Automatic project discovery**: Smart detection of Git repositories and programming languages
+- **Flexible tagging system**: Organize projects with custom tags
+- **Integration with Helix editor**: Seamless editor integration
+- **Cross-platform support**: Works on macOS, Linux, and Windows
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ or Python 3.8+
+- Rust 1.70+ (for building from source)
 - Git
+- Helix editor (recommended) or any text editor
 
 ### Installation
 
@@ -16,30 +25,40 @@ A project management application.
 git clone <repository-url>
 cd project-manager
 
-# Install dependencies (choose based on your project type)
-# For Node.js:
-# npm install
+# Build the project
+cargo build --release
 
-# For Python:
-# pip install -r requirements.txt
+# Install to your system
+cargo install --path .
+```
+
+### Quick Start
+
+```bash
+# Initialize PM
+pm init
+
+# Add a project
+pm add ~/workspace/my-project
+
+# List projects
+pm ls
+
+# Switch to a project
+pm s my-project
 ```
 
 ### Development
 
 ```bash
-# Start development server
-# npm run dev
-# or
-# python main.py
-```
+# Run in development mode
+cargo run -- <command>
 
-### Testing
-
-```bash
 # Run tests
-# npm test
-# or
-# python -m pytest
+cargo test
+
+# Build optimized release
+cargo build --release
 ```
 
 ## Project Structure
@@ -47,11 +66,43 @@ cd project-manager
 ```
 project-manager/
 ├── src/                 # Source code
-├── tests/              # Test files
+│   ├── main.rs         # Main entry point
+│   ├── config.rs       # Configuration management
+│   ├── utils.rs        # Utility functions
+│   └── tag_commands.rs # Tag management
 ├── docs/               # Documentation
-├── .github/            # GitHub workflows
+├── Cargo.toml         # Rust dependencies
 ├── .gitignore         # Git ignore patterns
 └── README.md          # This file
+```
+
+## Commands
+
+### Core Commands
+
+- `pm init` - Initialize PM with your GitHub username and projects root directory
+- `pm add <path>` - Add a new project to PM
+- `pm ls` - List all managed projects
+- `pm s <name>` - Switch to a project and open in editor
+
+### Tag Management
+
+- `pm tag add <project> <tags>` - Add tags to a project
+- `pm tag rm <project> <tags>` - Remove tags from a project
+- `pm tag ls` - List all tags and their usage counts
+- `pm tag show [project]` - Show tags for a specific project
+
+### Usage Examples
+
+```bash
+# Add a project with tags
+pm add ~/workspace/frontend --tags "work,react,frontend"
+
+# List projects with filtering (coming soon)
+pm ls --tags work --recent 7d --limit 5
+
+# Switch to project without opening editor
+pm s backend-api --no-editor
 ```
 
 ## Contributing
@@ -59,7 +110,7 @@ project-manager/
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Run tests
+4. Run tests: `cargo test`
 5. Submit a pull request
 
 ## License
