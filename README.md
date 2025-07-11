@@ -12,22 +12,14 @@ A fast, terminal-based project management CLI tool written in Rust. PM helps dev
 
 ## Installation
 
-### Option 1: cargo-binstall (Rust Users)
-
-If you have Rust installed:
-```bash
-cargo install cargo-binstall
-cargo binstall pm
-```
-
-### Option 2: Quick Install Script (Recommended)
+### Option 1: Quick Install Script (Recommended)
 
 **macOS (Apple Silicon M1/M2)**:
 ```bash
-curl -sSf https://raw.githubusercontent.com/zdpk/project-manager/main/install.sh | sh
+curl -sSf https://github.com/zdpk/project-manager/releases/latest/download/install.sh | sh
 ```
 
-### Option 3: Manual Download
+### Option 2: Manual Download
 
 Download the latest binary from the [Releases page](https://github.com/zdpk/project-manager/releases):
 
@@ -40,7 +32,7 @@ sudo mv pm /usr/local/bin/
 
 > **Note**: Currently only macOS Apple Silicon (M1/M2) is supported. Linux and Windows support coming soon.
 
-### Option 4: Build from Source
+### Option 3: Build from Source
 
 #### Prerequisites
 
