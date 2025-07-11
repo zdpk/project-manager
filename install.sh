@@ -59,20 +59,57 @@ fi
 # Make it executable
 chmod +x "$BINARY_NAME"
 
-# Install to /usr/local/bin (with sudo if needed)
-INSTALL_DIR="/usr/local/bin"
-if [ -w "$INSTALL_DIR" ]; then
-    mv "$BINARY_NAME" "$INSTALL_DIR/"
+# Try local install first, fall back to system install
+LOCAL_INSTALL_DIR="$HOME/.local/bin"
+SYSTEM_INSTALL_DIR="/usr/local/bin"
+
+# Create local bin directory if it doesn't exist
+mkdir -p "$LOCAL_INSTALL_DIR"
+
+# Check if local bin is in PATH
+if echo "$PATH" | grep -q "$LOCAL_INSTALL_DIR"; then
+    echo "Installing to $LOCAL_INSTALL_DIR..."
+    mv "$BINARY_NAME" "$LOCAL_INSTALL_DIR/"
+    INSTALLED_TO="$LOCAL_INSTALL_DIR"
 else
-    echo "Installing to $INSTALL_DIR (requires sudo)..."
-    sudo mv "$BINARY_NAME" "$INSTALL_DIR/"
+    # Check if we can write to system directory
+    if [ -w "$SYSTEM_INSTALL_DIR" ]; then
+        echo "Installing to $SYSTEM_INSTALL_DIR..."
+        mv "$BINARY_NAME" "$SYSTEM_INSTALL_DIR/"
+        INSTALLED_TO="$SYSTEM_INSTALL_DIR"
+    else
+        # Try local install and add to PATH
+        echo "Installing to $LOCAL_INSTALL_DIR..."
+        mv "$BINARY_NAME" "$LOCAL_INSTALL_DIR/"
+        INSTALLED_TO="$LOCAL_INSTALL_DIR"
+        
+        # Add to PATH in shell profiles
+        add_to_path() {
+            local shell_profile="$1"
+            if [ -f "$shell_profile" ]; then
+                if ! grep -q "$LOCAL_INSTALL_DIR" "$shell_profile"; then
+                    echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$shell_profile"
+                    echo "Added $LOCAL_INSTALL_DIR to PATH in $shell_profile"
+                fi
+            fi
+        }
+        
+        add_to_path "$HOME/.bashrc"
+        add_to_path "$HOME/.zshrc"
+        add_to_path "$HOME/.profile"
+        
+        echo ""
+        echo "⚠️  Please restart your terminal or run:"
+        echo "   export PATH=\"\$HOME/.local/bin:\$PATH\""
+    fi
 fi
 
 # Cleanup
 cd /
 rm -rf "$TMP_DIR"
 
-echo "✅ PM successfully installed!"
+echo ""
+echo "✅ PM successfully installed to $INSTALLED_TO!"
 echo "Run 'pm --help' to get started."
 echo ""
 echo "Next steps:"
