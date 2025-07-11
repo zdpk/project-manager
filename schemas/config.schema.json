@@ -1,0 +1,154 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/zdpk/project-manager/schemas/config.schema.json",
+  "title": "PM Configuration Schema",
+  "description": "Schema for PM (Project Manager) configuration file",
+  "type": "object",
+  "required": ["version", "github_username", "projects_root_dir"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Configuration file version"
+    },
+    "github_username": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9-]){0,38}$",
+      "description": "GitHub username (valid GitHub username format)"
+    },
+    "projects_root_dir": {
+      "type": "string",
+      "description": "Root directory where projects are located"
+    },
+    "editor": {
+      "type": "string",
+      "default": "hx",
+      "description": "Default editor command"
+    },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "auto_open_editor": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically open editor when switching projects"
+        },
+        "show_git_status": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show git status in project listings"
+        },
+        "recent_projects_limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10,
+          "description": "Number of recent projects to remember"
+        }
+      },
+      "additionalProperties": false
+    },
+    "projects": {
+      "type": "object",
+      "patternProperties": {
+        "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$": {
+          "type": "object",
+          "required": ["id", "name", "path", "created_at", "updated_at"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "description": "Unique project identifier (UUID)"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Project name"
+            },
+            "path": {
+              "type": "string",
+              "description": "Absolute path to project directory"
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true,
+              "description": "Project tags"
+            },
+            "language": {
+              "type": ["string", "null"],
+              "description": "Detected programming language"
+            },
+            "git_remote_url": {
+              "type": ["string", "null"],
+              "description": "Git remote URL"
+            },
+            "git_current_branch": {
+              "type": ["string", "null"],
+              "description": "Current git branch"
+            },
+            "git_status": {
+              "type": ["string", "null"],
+              "description": "Git status"
+            },
+            "last_git_commit_time": {
+              "type": ["string", "null"],
+              "format": "date-time",
+              "description": "Last git commit time"
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Project creation time"
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Project last update time"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "description": "Project configurations indexed by UUID"
+    },
+    "machine_metadata": {
+      "type": "object",
+      "patternProperties": {
+        ".*": {
+          "type": "object",
+          "properties": {
+            "last_accessed": {
+              "type": "object",
+              "patternProperties": {
+                "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "additionalProperties": false,
+              "description": "Last access times for projects on this machine"
+            },
+            "access_counts": {
+              "type": "object",
+              "patternProperties": {
+                "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false,
+              "description": "Access counts for projects on this machine"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "description": "Machine-specific metadata indexed by machine ID"
+    }
+  },
+  "additionalProperties": false
+}
