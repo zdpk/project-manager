@@ -14,7 +14,7 @@ mod error;
 mod commands;
 
 use config::load_config;
-use commands::{init, project, tag};
+use commands::{init, project, tag, config as config_cmd};
 use error::handle_error;
 use constants::*;
 
@@ -36,6 +36,10 @@ enum Commands {
         #[command(subcommand)]
         action: TagAction,
     },
+    
+    /// Manage configuration
+    #[command(subcommand, alias = "c")]
+    Config(ConfigCommands),
     /// Initialize the pm tool
     Init {},
     
@@ -166,6 +170,21 @@ enum TagAction {
     },
 }
 
+#[derive(Subcommand)]
+enum ConfigCommands {
+    /// Show current configuration
+    Show {},
+    
+    /// Edit configuration file with default editor
+    Edit {},
+    
+    /// Validate configuration file
+    Validate {},
+    
+    /// Reset configuration to defaults
+    Reset {},
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Project {
     pub id: Uuid,
@@ -260,6 +279,28 @@ async fn main() {
             TagAction::Show { project_name } => {
                 if let Err(e) = tag::handle_tag_show(project_name.as_deref()).await {
                     handle_error(e, "Failed to show tags");
+                }
+            }
+        },
+        Commands::Config(config_command) => match config_command {
+            ConfigCommands::Show {} => {
+                if let Err(e) = config_cmd::handle_show().await {
+                    handle_error(e, "Failed to show config");
+                }
+            }
+            ConfigCommands::Edit {} => {
+                if let Err(e) = config_cmd::handle_edit().await {
+                    handle_error(e, "Failed to edit config");
+                }
+            }
+            ConfigCommands::Validate {} => {
+                if let Err(e) = config_cmd::handle_validate().await {
+                    handle_error(e, "Failed to validate config");
+                }
+            }
+            ConfigCommands::Reset {} => {
+                if let Err(e) = config_cmd::handle_reset().await {
+                    handle_error(e, "Failed to reset config");
                 }
             }
         },
