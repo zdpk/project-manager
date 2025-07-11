@@ -183,6 +183,23 @@ enum ConfigCommands {
     
     /// Reset configuration to defaults
     Reset {},
+    
+    /// Get a specific configuration value
+    Get {
+        /// Configuration key (supports dot notation like 'settings.auto_open_editor')
+        key: String,
+    },
+    
+    /// Set a configuration value
+    Set {
+        /// Configuration key (supports dot notation like 'settings.auto_open_editor')
+        key: String,
+        /// New value
+        value: String,
+    },
+    
+    /// List all available configuration keys
+    List {},
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -301,6 +318,21 @@ async fn main() {
             ConfigCommands::Reset {} => {
                 if let Err(e) = config_cmd::handle_reset().await {
                     handle_error(e, "Failed to reset config");
+                }
+            }
+            ConfigCommands::Get { key } => {
+                if let Err(e) = config_cmd::handle_get(key).await {
+                    handle_error(e, "Failed to get config value");
+                }
+            }
+            ConfigCommands::Set { key, value } => {
+                if let Err(e) = config_cmd::handle_set(key, value).await {
+                    handle_error(e, "Failed to set config value");
+                }
+            }
+            ConfigCommands::List {} => {
+                if let Err(e) = config_cmd::handle_list().await {
+                    handle_error(e, "Failed to list config keys");
                 }
             }
         },
