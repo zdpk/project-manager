@@ -51,6 +51,7 @@ pub async fn handle_init() -> Result<()> {
     }
 
     let config = Config {
+        version: crate::constants::CONFIG_VERSION.to_string(),
         github_username: github_username.clone(),
         projects_root_dir: projects_root_dir.clone(),
         ..Default::default()

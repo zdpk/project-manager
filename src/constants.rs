@@ -1,6 +1,11 @@
 // Application constants
 pub const APP_NAME: &str = "pm";
-pub const CONFIG_FILENAME: &str = "config.json";
+pub const CONFIG_FILENAME: &str = "config.yml";
+pub const CONFIG_SCHEMA_PATH: &str = "schemas/config.schema.json";
+pub const CONFIG_VERSION: &str = "1.0";
+
+// Legacy support
+pub const LEGACY_CONFIG_FILENAME: &str = "config.json";
 
 // Default values
 pub const DEFAULT_WORKSPACE_DIR: &str = "~/workspace";
