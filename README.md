@@ -12,30 +12,16 @@ A fast, terminal-based project management CLI tool written in Rust. PM helps dev
 
 ## Installation
 
-### Option 1: Download Pre-built Binaries (Recommended)
+### Option 1: Quick Install Script (Recommended)
 
-Download the latest binary for your platform from the [Releases page](https://github.com/zdpk/project-manager/releases):
-
-**Linux (x86_64)**:
+**macOS (Apple Silicon M1/M2)**:
 ```bash
-curl -L https://github.com/zdpk/project-manager/releases/latest/download/pm-x86_64-unknown-linux-gnu -o pm
-chmod +x pm
-sudo mv pm /usr/local/bin/
+curl -sSf https://github.com/zdpk/project-manager/releases/latest/download/install.sh | sh
 ```
 
-**Linux (ARM64 - AWS Graviton, Google ARM, etc.)**:
-```bash
-curl -L https://github.com/zdpk/project-manager/releases/latest/download/pm-aarch64-unknown-linux-gnu -o pm
-chmod +x pm
-sudo mv pm /usr/local/bin/
-```
+### Option 2: Manual Download
 
-**macOS (Intel)**:
-```bash
-curl -L https://github.com/zdpk/project-manager/releases/latest/download/pm-x86_64-apple-darwin -o pm
-chmod +x pm
-sudo mv pm /usr/local/bin/
-```
+Download the latest binary from the [Releases page](https://github.com/zdpk/project-manager/releases):
 
 **macOS (Apple Silicon M1/M2)**:
 ```bash
@@ -44,10 +30,9 @@ chmod +x pm
 sudo mv pm /usr/local/bin/
 ```
 
-**Windows**:
-Download `pm-x86_64-pc-windows-gnu.exe` from the releases page and add it to your PATH.
+> **Note**: Currently only macOS Apple Silicon (M1/M2) is supported. Linux and Windows support coming soon.
 
-### Option 2: Build from Source
+### Option 3: Build from Source
 
 #### Prerequisites
 
