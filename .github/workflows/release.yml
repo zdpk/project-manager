@@ -35,6 +35,6 @@ jobs:
         with:
           files: |
             pm-aarch64-apple-darwin
-            install.sh
-            install-portable.sh
+            script/install.sh
+            script/install-portable.sh
           token: ${{ secrets.GITHUB_TOKEN }}

@@ -2,7 +2,7 @@
 set -e
 
 # PM Installation Script
-# Usage: curl -sSf https://raw.githubusercontent.com/zdpk/project-manager/main/install.sh | sh
+# Usage: curl -fsSL https://github.com/zdpk/project-manager/releases/latest/download/install.sh | sh
 
 REPO="zdpk/project-manager"
 BINARY_NAME="pm"

@@ -8,29 +8,29 @@ A fast, terminal-based project management CLI tool written in Rust. PM helps dev
 - **Automatic project discovery**: Smart detection of Git repositories and programming languages
 - **Flexible tagging system**: Organize projects with custom tags
 - **Integration with Helix editor**: Seamless editor integration
-- **Cross-platform support**: Works on macOS, Linux, and Windows
+- **Native performance**: Fast native binary for macOS Apple Silicon
 
 ## Installation
 
 ### Option 1: Quick Install Script (Recommended)
 
-**macOS (Apple Silicon M1/M2)**:
+**macOS (Apple Silicon)**:
 ```bash
-curl -sSf https://github.com/zdpk/project-manager/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/zdpk/project-manager/releases/latest/download/install.sh | sh
 ```
 
 ### Option 2: Manual Download
 
 Download the latest binary from the [Releases page](https://github.com/zdpk/project-manager/releases):
 
-**macOS (Apple Silicon M1/M2)**:
+**macOS (Apple Silicon)**:
 ```bash
 curl -L https://github.com/zdpk/project-manager/releases/latest/download/pm-aarch64-apple-darwin -o pm
 chmod +x pm
 sudo mv pm /usr/local/bin/
 ```
 
-> **Note**: Currently only macOS Apple Silicon (M1/M2) is supported. Linux and Windows support coming soon.
+> **Note**: Currently only macOS Apple Silicon is supported.
 
 ### Option 3: Build from Source
 
