@@ -2,6 +2,16 @@
 name = "pm"
 version = "0.1.0"
 edition = "2021"
+description = "A fast, terminal-based project management CLI tool"
+license = "MIT"
+repository = "https://github.com/zdpk/project-manager"
+homepage = "https://github.com/zdpk/project-manager"
+keywords = ["cli", "project", "management", "developer-tools"]
+categories = ["command-line-utilities", "development-tools"]
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }"
+bin-dir = "{ bin }"
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
