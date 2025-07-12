@@ -12,7 +12,7 @@ use anyhow::Result;
 use std::collections::HashSet;
 use walkdir::WalkDir;
 use git2::Repository;
-use inquire::MultiSelect;
+use inquire::{MultiSelect, Confirm};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::fs;
 use colored::*;
@@ -26,13 +26,44 @@ pub async fn handle_add(path: &PathBuf, name: &Option<String>, tags: &[String], 
         config.projects_root_dir.join(path)
     };
 
-    let absolute_path = validate_path(&resolved_path)?;
+    // Check if directory exists
+    let absolute_path = if !resolved_path.exists() {
+        // Directory doesn't exist - prompt user to create it
+        match Confirm::new(&format!("Directory '{}' doesn't exist. Create it?", resolved_path.display()))
+            .with_default(true)
+            .prompt() {
+            Ok(create_dir) => {
+                if !create_dir {
+                    println!("❌ Directory creation cancelled. Project not added.");
+                    return Ok(());
+                }
+            },
+            Err(_) => {
+                // Non-interactive environment - create directory automatically
+                println!("ℹ️  Non-interactive mode: Creating directory automatically");
+            }
+        }
 
-    // Check for duplicate projects
+        // Create the directory
+        fs::create_dir_all(&resolved_path)?;
+        println!("✅ Created directory: {}", resolved_path.display());
+        
+        // Now validate the created path
+        validate_path(&resolved_path)?
+    } else {
+        // Directory exists - validate it
+        validate_path(&resolved_path)?
+    };
+
+    // Check for duplicate projects (path-based)
     if config.projects.values().any(|p| p.path == absolute_path) {
-        display_error(ERROR_DUPLICATE_PROJECT, &format!("at path: {}", absolute_path.display()));
-        display_info(SUGGESTION_USE_PM_LS);
-        return Err(PmError::DuplicateProject.into());
+        println!("ℹ️  Project already exists at this path: {}", absolute_path.display());
+        if let Some(existing_project) = config.projects.values().find(|p| p.path == absolute_path) {
+            println!("   Project name: '{}'", existing_project.name);
+            println!("   Tags: {}", if existing_project.tags.is_empty() { "none".to_string() } else { existing_project.tags.join(", ") });
+        }
+        println!("💡 Use 'pm project list' to see all projects");
+        return Ok(());
     }
 
     let project_name = name.clone().unwrap_or_else(|| {
@@ -49,12 +80,12 @@ pub async fn handle_add(path: &PathBuf, name: &Option<String>, tags: &[String], 
         return Err(PmError::DuplicateProject.into());
     }
 
-    println!("📂 Adding project at: {}", absolute_path.display());
+    println!("📂 Adding project '{}' at: {}", project_name, absolute_path.display());
 
     let git_updated_at = match get_last_git_commit_time(&absolute_path) {
         Ok(time) => time,
         Err(_) => {
-            display_warning("Not a Git repository or no commits found");
+            println!("ℹ️  Not a Git repository (no .git directory found)");
             None
         }
     };
@@ -62,7 +93,7 @@ pub async fn handle_add(path: &PathBuf, name: &Option<String>, tags: &[String], 
     let project = Project {
         id: Uuid::new_v4(),
         name: project_name.clone(),
-        path: absolute_path,
+        path: absolute_path.clone(),
         tags: tags.to_vec(),
         description: description.clone(),
         created_at: Utc::now(),
@@ -73,7 +104,16 @@ pub async fn handle_add(path: &PathBuf, name: &Option<String>, tags: &[String], 
     config.add_project(project);
     save_config(&config).await?;
 
-    display_project_added(&project_name, tags);
+    // Success message
+    println!("✅ Successfully added project '{}'", project_name);
+    if !tags.is_empty() {
+        println!("   Tags: {}", tags.join(", "));
+    }
+    if let Some(desc) = description {
+        println!("   Description: {}", desc);
+    }
+    println!("   Path: {}", absolute_path.display());
+    
     Ok(())
 }
 
