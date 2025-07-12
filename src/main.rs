@@ -15,6 +15,7 @@ mod commands;
 
 use config::load_config;
 use commands::{init, project, tag, config as config_cmd};
+use commands::config::ExportFormat;
 use error::handle_error;
 use constants::*;
 
@@ -200,6 +201,99 @@ enum ConfigCommands {
     
     /// List all available configuration keys
     List {},
+    
+    /// Backup and restore operations
+    #[command(subcommand)]
+    Backup(BackupCommands),
+    
+    /// Template operations
+    #[command(subcommand)]
+    Template(TemplateCommands),
+    
+    /// Interactive configuration setup
+    Setup {
+        /// Use quick setup with defaults
+        #[arg(long)]
+        quick: bool,
+    },
+    
+    /// Export configuration
+    Export {
+        /// Output format
+        #[arg(long, value_enum, default_value = "yaml")]
+        format: ExportFormat,
+        /// Output file path
+        #[arg(long)]
+        file: Option<PathBuf>,
+    },
+    
+    /// Import configuration from file
+    Import {
+        /// Input file path
+        file: PathBuf,
+        /// Force import without backup
+        #[arg(long)]
+        force: bool,
+    },
+    
+    /// Show differences between current config and backup
+    Diff {
+        /// Backup name to compare with (defaults to latest)
+        backup: Option<String>,
+    },
+    
+    /// Show configuration change history
+    History {
+        /// Limit number of entries
+        #[arg(long, default_value = "10")]
+        limit: usize,
+    },
+}
+
+#[derive(Subcommand)]
+enum BackupCommands {
+    /// Create a backup of current configuration
+    Create {
+        /// Backup name (optional, defaults to timestamp)
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// Restore configuration from backup
+    Restore {
+        /// Backup name
+        name: String,
+    },
+    /// List all available backups
+    List {},
+    /// Delete a backup
+    Delete {
+        /// Backup name
+        name: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum TemplateCommands {
+    /// List available templates
+    List {},
+    /// Apply a template
+    Apply {
+        /// Template name
+        name: String,
+    },
+    /// Save current configuration as template
+    Save {
+        /// Template name
+        name: String,
+        /// Template description
+        #[arg(long)]
+        description: Option<String>,
+    },
+    /// Delete a template
+    Delete {
+        /// Template name
+        name: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -333,6 +427,75 @@ async fn main() {
             ConfigCommands::List {} => {
                 if let Err(e) = config_cmd::handle_list().await {
                     handle_error(e, "Failed to list config keys");
+                }
+            }
+            ConfigCommands::Backup(backup_command) => match backup_command {
+                BackupCommands::Create { name } => {
+                    if let Err(e) = config_cmd::handle_backup_create(name.as_deref()).await {
+                        handle_error(e, "Failed to create backup");
+                    }
+                }
+                BackupCommands::Restore { name } => {
+                    if let Err(e) = config_cmd::handle_backup_restore(name).await {
+                        handle_error(e, "Failed to restore backup");
+                    }
+                }
+                BackupCommands::List {} => {
+                    if let Err(e) = config_cmd::handle_backup_list().await {
+                        handle_error(e, "Failed to list backups");
+                    }
+                }
+                BackupCommands::Delete { name } => {
+                    if let Err(e) = config_cmd::handle_backup_delete(name).await {
+                        handle_error(e, "Failed to delete backup");
+                    }
+                }
+            }
+            ConfigCommands::Template(template_command) => match template_command {
+                TemplateCommands::List {} => {
+                    if let Err(e) = config_cmd::handle_template_list().await {
+                        handle_error(e, "Failed to list templates");
+                    }
+                }
+                TemplateCommands::Apply { name } => {
+                    if let Err(e) = config_cmd::handle_template_apply(name).await {
+                        handle_error(e, "Failed to apply template");
+                    }
+                }
+                TemplateCommands::Save { name, description } => {
+                    if let Err(e) = config_cmd::handle_template_save(name, description.as_deref()).await {
+                        handle_error(e, "Failed to save template");
+                    }
+                }
+                TemplateCommands::Delete { name } => {
+                    if let Err(e) = config_cmd::handle_template_delete(name).await {
+                        handle_error(e, "Failed to delete template");
+                    }
+                }
+            }
+            ConfigCommands::Setup { quick } => {
+                if let Err(e) = config_cmd::handle_setup(*quick).await {
+                    handle_error(e, "Failed to setup config");
+                }
+            }
+            ConfigCommands::Export { format, file } => {
+                if let Err(e) = config_cmd::handle_export(format, file.as_deref()).await {
+                    handle_error(e, "Failed to export config");
+                }
+            }
+            ConfigCommands::Import { file, force } => {
+                if let Err(e) = config_cmd::handle_import(file, *force).await {
+                    handle_error(e, "Failed to import config");
+                }
+            }
+            ConfigCommands::Diff { backup } => {
+                if let Err(e) = config_cmd::handle_diff(backup.as_deref()).await {
+                    handle_error(e, "Failed to show config diff");
+                }
+            }
+            ConfigCommands::History { limit } => {
+                if let Err(e) = config_cmd::handle_history(*limit).await {
+                    handle_error(e, "Failed to show config history");
                 }
             }
         },

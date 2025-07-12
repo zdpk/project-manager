@@ -3,10 +3,21 @@ use crate::constants::*;
 use crate::display::*;
 use crate::error::PmError;
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use colored::*;
+use inquire::{Text, Select, Confirm};
+use serde::{Deserialize, Serialize};
 use serde_yaml::Value;
+use std::collections::HashMap;
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+
+#[derive(clap::ValueEnum, Clone)]
+pub enum ExportFormat {
+    Yaml,
+    Json,
+}
 
 // Valid configuration keys for validation
 const VALID_KEYS: &[&str] = &[
@@ -478,4 +489,868 @@ fn levenshtein_distance(s1: &str, s2: &str) -> usize {
     }
     
     matrix[len1][len2]
+}
+
+// =====================================================
+// Phase 4: Advanced Config Features
+// =====================================================
+
+#[derive(Serialize, Deserialize, Debug)]
+struct BackupMetadata {
+    name: String,
+    created_at: DateTime<Utc>,
+    description: Option<String>,
+    config_version: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ConfigTemplate {
+    name: String,
+    description: Option<String>,
+    created_at: DateTime<Utc>,
+    config: Config,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ConfigHistory {
+    timestamp: DateTime<Utc>,
+    action: String,
+    details: String,
+    config_hash: String,
+}
+
+// Helper functions for paths
+fn get_backups_dir() -> Result<PathBuf> {
+    let config_path = get_config_path()?;
+    let config_dir = config_path.parent().unwrap();
+    Ok(config_dir.join("backups"))
+}
+
+fn get_templates_dir() -> Result<PathBuf> {
+    let config_path = get_config_path()?;
+    let config_dir = config_path.parent().unwrap();
+    Ok(config_dir.join("templates"))
+}
+
+fn get_history_file() -> Result<PathBuf> {
+    let config_path = get_config_path()?;
+    let config_dir = config_path.parent().unwrap();
+    Ok(config_dir.join("history.yml"))
+}
+
+fn ensure_dir_exists(dir: &Path) -> Result<()> {
+    if !dir.exists() {
+        fs::create_dir_all(dir)?;
+    }
+    Ok(())
+}
+
+fn generate_backup_name() -> String {
+    Utc::now().format("backup_%Y%m%d_%H%M%S").to_string()
+}
+
+fn config_hash(config: &Config) -> Result<String> {
+    let config_yaml = serde_yaml::to_string(config)?;
+    Ok(format!("{:x}", md5::compute(config_yaml.as_bytes())))
+}
+
+// =====================================================
+// Backup Commands
+// =====================================================
+
+pub async fn handle_backup_create(name: Option<&str>) -> Result<()> {
+    let config = load_config().await?;
+    let backups_dir = get_backups_dir()?;
+    ensure_dir_exists(&backups_dir)?;
+    
+    let backup_name = name.unwrap_or(&generate_backup_name()).to_string();
+    let backup_file = backups_dir.join(format!("{}.yml", backup_name));
+    
+    if backup_file.exists() {
+        return Err(anyhow::anyhow!("Backup '{}' already exists", backup_name));
+    }
+    
+    // Create backup metadata
+    let metadata = BackupMetadata {
+        name: backup_name.clone(),
+        created_at: Utc::now(),
+        description: None,
+        config_version: config.version.clone(),
+    };
+    
+    // Save config and metadata
+    let backup_data = serde_yaml::to_string(&(metadata, config))?;
+    fs::write(&backup_file, backup_data)?;
+    
+    // Add to history
+    add_to_history(&format!("backup_create:{}", backup_name), &format!("Created backup '{}'", backup_name)).await?;
+    
+    println!("✅ Created backup: {}", backup_name.green());
+    println!("📁 Location: {}", backup_file.display().to_string().bright_black());
+    
+    Ok(())
+}
+
+pub async fn handle_backup_restore(name: &str) -> Result<()> {
+    let backups_dir = get_backups_dir()?;
+    let backup_file = backups_dir.join(format!("{}.yml", name));
+    
+    if !backup_file.exists() {
+        return Err(anyhow::anyhow!("Backup '{}' not found", name));
+    }
+    
+    // Load backup
+    let backup_content = fs::read_to_string(&backup_file)?;
+    let (metadata, backup_config): (BackupMetadata, Config) = serde_yaml::from_str(&backup_content)?;
+    
+    // Confirm restore
+    let confirm = Confirm::new(&format!("Restore configuration from backup '{}'? This will overwrite your current config.", name))
+        .with_default(false)
+        .prompt()?;
+    
+    if !confirm {
+        println!("Restore cancelled.");
+        return Ok(());
+    }
+    
+    // Create automatic backup before restore
+    handle_backup_create(Some(&format!("auto_before_restore_{}", Utc::now().format("%Y%m%d_%H%M%S")))).await?;
+    
+    // Restore config
+    save_config(&backup_config).await?;
+    
+    // Add to history
+    add_to_history(&format!("backup_restore:{}", name), &format!("Restored from backup '{}'", name)).await?;
+    
+    println!("✅ Restored configuration from backup: {}", name.green());
+    println!("📅 Backup created: {}", metadata.created_at.format("%Y-%m-%d %H:%M:%S UTC"));
+    
+    Ok(())
+}
+
+pub async fn handle_backup_list() -> Result<()> {
+    let backups_dir = get_backups_dir()?;
+    
+    if !backups_dir.exists() {
+        println!("📦 No backups found");
+        return Ok(());
+    }
+    
+    let mut backups = Vec::new();
+    
+    for entry in fs::read_dir(&backups_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        
+        if path.extension().and_then(|s| s.to_str()) == Some("yml") {
+            if let Ok(content) = fs::read_to_string(&path) {
+                if let Ok((metadata, _)) = serde_yaml::from_str::<(BackupMetadata, Config)>(&content) {
+                    backups.push(metadata);
+                }
+            }
+        }
+    }
+    
+    if backups.is_empty() {
+        println!("📦 No valid backups found");
+        return Ok(());
+    }
+    
+    // Sort by creation date (newest first)
+    backups.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    
+    println!("{}", "📦 Configuration Backups".blue().bold());
+    println!();
+    
+    for backup in backups {
+        let age = format_duration(Utc::now().signed_duration_since(backup.created_at));
+        println!("  {} {}", 
+            backup.name.cyan().bold(),
+            format!("({})", age).bright_black()
+        );
+        println!("    📅 {}", backup.created_at.format("%Y-%m-%d %H:%M:%S UTC"));
+        if let Some(desc) = backup.description {
+            println!("    📝 {}", desc);
+        }
+        println!();
+    }
+    
+    println!("💡 Use: {} | {}", 
+        "pm config backup restore <name>".cyan(),
+        "pm config backup delete <name>".cyan()
+    );
+    
+    Ok(())
+}
+
+pub async fn handle_backup_delete(name: &str) -> Result<()> {
+    let backups_dir = get_backups_dir()?;
+    let backup_file = backups_dir.join(format!("{}.yml", name));
+    
+    if !backup_file.exists() {
+        return Err(anyhow::anyhow!("Backup '{}' not found", name));
+    }
+    
+    let confirm = Confirm::new(&format!("Delete backup '{}'? This cannot be undone.", name))
+        .with_default(false)
+        .prompt()?;
+    
+    if !confirm {
+        println!("Delete cancelled.");
+        return Ok(());
+    }
+    
+    fs::remove_file(&backup_file)?;
+    
+    // Add to history
+    add_to_history(&format!("backup_delete:{}", name), &format!("Deleted backup '{}'", name)).await?;
+    
+    println!("✅ Deleted backup: {}", name.green());
+    
+    Ok(())
+}
+
+// =====================================================
+// Template Commands  
+// =====================================================
+
+pub async fn handle_template_list() -> Result<()> {
+    let templates_dir = get_templates_dir()?;
+    
+    // Show built-in templates first
+    println!("{}", "📋 Configuration Templates".blue().bold());
+    println!();
+    println!("{}", "🏭 Built-in Templates:".yellow().bold());
+    
+    let builtin_templates = get_builtin_templates();
+    for (name, description) in builtin_templates {
+        println!("  {} - {}", name.cyan().bold(), description);
+    }
+    
+    // Show user templates
+    if templates_dir.exists() {
+        let mut user_templates = Vec::new();
+        
+        for entry in fs::read_dir(&templates_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            
+            if path.extension().and_then(|s| s.to_str()) == Some("yml") {
+                if let Ok(content) = fs::read_to_string(&path) {
+                    if let Ok(template) = serde_yaml::from_str::<ConfigTemplate>(&content) {
+                        user_templates.push(template);
+                    }
+                }
+            }
+        }
+        
+        if !user_templates.is_empty() {
+            println!();
+            println!("{}", "👤 User Templates:".yellow().bold());
+            
+            user_templates.sort_by(|a, b| a.name.cmp(&b.name));
+            
+            for template in user_templates {
+                println!("  {} - {}", 
+                    template.name.cyan().bold(),
+                    template.description.unwrap_or_else(|| "No description".to_string())
+                );
+                println!("    📅 Created: {}", template.created_at.format("%Y-%m-%d"));
+            }
+        }
+    }
+    
+    println!();
+    println!("💡 Use: {} | {}", 
+        "pm config template apply <name>".cyan(),
+        "pm config template save <name>".cyan()
+    );
+    
+    Ok(())
+}
+
+pub async fn handle_template_apply(name: &str) -> Result<()> {
+    // Check built-in templates first
+    let builtin_templates = get_builtin_templates();
+    if builtin_templates.iter().any(|(template_name, _)| template_name == &name) {
+        return apply_builtin_template(name).await;
+    }
+    
+    // Check user templates
+    let templates_dir = get_templates_dir()?;
+    let template_file = templates_dir.join(format!("{}.yml", name));
+    
+    if !template_file.exists() {
+        return Err(anyhow::anyhow!("Template '{}' not found", name));
+    }
+    
+    let template_content = fs::read_to_string(&template_file)?;
+    let template: ConfigTemplate = serde_yaml::from_str(&template_content)?;
+    
+    // Confirm application
+    let confirm = Confirm::new(&format!("Apply template '{}'? This will overwrite your current config.", name))
+        .with_default(false)
+        .prompt()?;
+    
+    if !confirm {
+        println!("Template application cancelled.");
+        return Ok(());
+    }
+    
+    // Create backup before applying template
+    handle_backup_create(Some(&format!("auto_before_template_{}", Utc::now().format("%Y%m%d_%H%M%S")))).await?;
+    
+    // Apply template
+    save_config(&template.config).await?;
+    
+    // Add to history
+    add_to_history(&format!("template_apply:{}", name), &format!("Applied template '{}'", name)).await?;
+    
+    println!("✅ Applied template: {}", name.green());
+    if let Some(desc) = template.description {
+        println!("📝 {}", desc);
+    }
+    
+    Ok(())
+}
+
+pub async fn handle_template_save(name: &str, description: Option<&str>) -> Result<()> {
+    let config = load_config().await?;
+    let templates_dir = get_templates_dir()?;
+    ensure_dir_exists(&templates_dir)?;
+    
+    let template_file = templates_dir.join(format!("{}.yml", name));
+    
+    if template_file.exists() {
+        let confirm = Confirm::new(&format!("Template '{}' already exists. Overwrite?", name))
+            .with_default(false)
+            .prompt()?;
+        
+        if !confirm {
+            println!("Template save cancelled.");
+            return Ok(());
+        }
+    }
+    
+    let template = ConfigTemplate {
+        name: name.to_string(),
+        description: description.map(|s| s.to_string()),
+        created_at: Utc::now(),
+        config,
+    };
+    
+    let template_yaml = serde_yaml::to_string(&template)?;
+    fs::write(&template_file, template_yaml)?;
+    
+    // Add to history
+    add_to_history(&format!("template_save:{}", name), &format!("Saved template '{}'", name)).await?;
+    
+    println!("✅ Saved template: {}", name.green());
+    println!("📁 Location: {}", template_file.display().to_string().bright_black());
+    
+    Ok(())
+}
+
+pub async fn handle_template_delete(name: &str) -> Result<()> {
+    let templates_dir = get_templates_dir()?;
+    let template_file = templates_dir.join(format!("{}.yml", name));
+    
+    if !template_file.exists() {
+        return Err(anyhow::anyhow!("Template '{}' not found", name));
+    }
+    
+    let confirm = Confirm::new(&format!("Delete template '{}'? This cannot be undone.", name))
+        .with_default(false)
+        .prompt()?;
+    
+    if !confirm {
+        println!("Delete cancelled.");
+        return Ok(());
+    }
+    
+    fs::remove_file(&template_file)?;
+    
+    // Add to history
+    add_to_history(&format!("template_delete:{}", name), &format!("Deleted template '{}'", name)).await?;
+    
+    println!("✅ Deleted template: {}", name.green());
+    
+    Ok(())
+}
+
+// Helper functions for templates and other Phase 4 features will be continued...
+
+fn get_builtin_templates() -> Vec<(&'static str, &'static str)> {
+    vec![
+        ("minimal", "Minimal configuration with basic settings"),
+        ("developer", "Standard developer configuration"),
+        ("team", "Team collaboration settings"),
+        ("enterprise", "Enterprise environment configuration"),
+    ]
+}
+
+async fn apply_builtin_template(name: &str) -> Result<()> {
+    let config = match name {
+        "minimal" => create_minimal_config(),
+        "developer" => create_developer_config(),
+        "team" => create_team_config(), 
+        "enterprise" => create_enterprise_config(),
+        _ => return Err(anyhow::anyhow!("Unknown built-in template: {}", name)),
+    };
+    
+    // Confirm application
+    let confirm = Confirm::new(&format!("Apply built-in template '{}'? This will overwrite your current config.", name))
+        .with_default(false)
+        .prompt()?;
+    
+    if !confirm {
+        println!("Template application cancelled.");
+        return Ok(());
+    }
+    
+    // Create backup before applying template
+    handle_backup_create(Some(&format!("auto_before_builtin_{}", Utc::now().format("%Y%m%d_%H%M%S")))).await?;
+    
+    // Apply template
+    save_config(&config).await?;
+    
+    // Add to history
+    add_to_history(&format!("template_apply:{}", name), &format!("Applied built-in template '{}'", name)).await?;
+    
+    println!("✅ Applied built-in template: {}", name.green());
+    
+    Ok(())
+}
+
+fn create_minimal_config() -> Config {
+    let mut config = Config::default();
+    config.settings.recent_projects_limit = 5;
+    config.settings.auto_open_editor = false;
+    config.settings.show_git_status = false;
+    config
+}
+
+fn create_developer_config() -> Config {
+    let mut config = Config::default();
+    config.settings.recent_projects_limit = 20;
+    config.settings.auto_open_editor = true;
+    config.settings.show_git_status = true;
+    config.editor = detect_editor();
+    config
+}
+
+fn create_team_config() -> Config {
+    let mut config = Config::default();
+    config.settings.recent_projects_limit = 15;
+    config.settings.auto_open_editor = true;
+    config.settings.show_git_status = true;
+    config.editor = "code".to_string(); // Default to VS Code for teams
+    config
+}
+
+fn create_enterprise_config() -> Config {
+    let mut config = Config::default();
+    config.settings.recent_projects_limit = 50;
+    config.settings.auto_open_editor = false;
+    config.settings.show_git_status = true;
+    config.editor = detect_editor();
+    config
+}
+
+fn detect_editor() -> String {
+    // Try to detect editor from environment or common installations
+    if let Ok(editor) = std::env::var("EDITOR") {
+        return editor;
+    }
+    
+    let editors = ["code", "vim", "nvim", "nano", "emacs"];
+    for editor in editors {
+        if Command::new(editor).arg("--version").output().is_ok() {
+            return editor.to_string();
+        }
+    }
+    
+    "nano".to_string() // fallback
+}
+
+// =====================================================
+// Setup Command
+// =====================================================
+
+pub async fn handle_setup(quick: bool) -> Result<()> {
+    if quick {
+        return setup_quick().await;
+    }
+    
+    println!("{}", "🚀 PM Configuration Setup".blue().bold());
+    println!("Let's configure your project manager settings!\n");
+    
+    let mut config = Config::default();
+    
+    // GitHub username
+    let github_username = Text::new("GitHub username:")
+        .with_default(&config.github_username)
+        .prompt()?;
+    config.github_username = github_username;
+    
+    // Projects root directory
+    let default_root = dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("projects");
+    
+    let projects_root = Text::new("Projects root directory:")
+        .with_default(&default_root.display().to_string())
+        .prompt()?;
+    config.projects_root_dir = PathBuf::from(shellexpand::tilde(&projects_root).into_owned());
+    
+    // Editor
+    let detected_editor = detect_editor();
+    let editor = Text::new("Preferred editor:")
+        .with_default(&detected_editor)
+        .prompt()?;
+    config.editor = editor;
+    
+    // Auto open editor
+    let auto_open = Confirm::new("Automatically open editor when switching projects?")
+        .with_default(true)
+        .prompt()?;
+    config.settings.auto_open_editor = auto_open;
+    
+    // Show git status
+    let show_git = Confirm::new("Show git status in project lists?")
+        .with_default(true)
+        .prompt()?;
+    config.settings.show_git_status = show_git;
+    
+    // Recent projects limit
+    let recent_limit_options = vec![5, 10, 15, 20, 25, 30];
+    let recent_limit = Select::new("Recent projects limit:", recent_limit_options)
+        .prompt()?;
+    config.settings.recent_projects_limit = recent_limit as u32;
+    
+    // Create projects directory if it doesn't exist
+    if !config.projects_root_dir.exists() {
+        let create_dir = Confirm::new(&format!("Projects directory '{}' doesn't exist. Create it?", config.projects_root_dir.display()))
+            .with_default(true)
+            .prompt()?;
+        
+        if create_dir {
+            fs::create_dir_all(&config.projects_root_dir)?;
+            println!("📁 Created directory: {}", config.projects_root_dir.display().to_string().green());
+        }
+    }
+    
+    // Save configuration
+    save_config(&config).await?;
+    
+    // Add to history
+    add_to_history("setup", "Interactive configuration setup completed").await?;
+    
+    println!("\n✅ Configuration setup complete!");
+    println!("💡 You can modify these settings anytime with: {}", "pm config edit".cyan());
+    
+    Ok(())
+}
+
+async fn setup_quick() -> Result<()> {
+    println!("{}", "⚡ Quick Setup".blue().bold());
+    
+    let mut config = Config::default();
+    
+    // Set sensible defaults
+    if let Some(home) = dirs::home_dir() {
+        config.projects_root_dir = home.join("projects");
+    }
+    
+    config.editor = detect_editor();
+    config.settings.auto_open_editor = true;
+    config.settings.show_git_status = true;
+    config.settings.recent_projects_limit = 15;
+    
+    // Create projects directory
+    if !config.projects_root_dir.exists() {
+        fs::create_dir_all(&config.projects_root_dir)?;
+        println!("📁 Created directory: {}", config.projects_root_dir.display().to_string().green());
+    }
+    
+    save_config(&config).await?;
+    
+    // Add to history
+    add_to_history("setup_quick", "Quick configuration setup completed").await?;
+    
+    println!("✅ Quick setup complete with default settings!");
+    println!("💡 Run {} for interactive setup", "pm config setup".cyan());
+    
+    Ok(())
+}
+
+// =====================================================
+// Export/Import Commands
+// =====================================================
+
+pub async fn handle_export(format: &ExportFormat, file: Option<&Path>) -> Result<()> {
+    let config = load_config().await?;
+    
+    let content = match format {
+        ExportFormat::Yaml => serde_yaml::to_string(&config)?,
+        ExportFormat::Json => serde_json::to_string_pretty(&config)?,
+    };
+    
+    match file {
+        Some(path) => {
+            fs::write(path, content)?;
+            println!("✅ Configuration exported to: {}", path.display().to_string().green());
+        }
+        None => {
+            println!("{}", content);
+        }
+    }
+    
+    Ok(())
+}
+
+pub async fn handle_import(file: &Path, force: bool) -> Result<()> {
+    if !file.exists() {
+        return Err(anyhow::anyhow!("File not found: {}", file.display()));
+    }
+    
+    let content = fs::read_to_string(file)?;
+    
+    // Try to parse as YAML first, then JSON
+    let config: Config = serde_yaml::from_str(&content)
+        .or_else(|_| serde_json::from_str(&content))
+        .map_err(|e| anyhow::anyhow!("Failed to parse config file: {}", e))?;
+    
+    if !force {
+        // Create backup before import
+        handle_backup_create(Some(&format!("auto_before_import_{}", Utc::now().format("%Y%m%d_%H%M%S")))).await?;
+        
+        let confirm = Confirm::new(&format!("Import configuration from '{}'? This will overwrite your current config.", file.display()))
+            .with_default(false)
+            .prompt()?;
+        
+        if !confirm {
+            println!("Import cancelled.");
+            return Ok(());
+        }
+    }
+    
+    save_config(&config).await?;
+    
+    // Add to history
+    add_to_history(&format!("import:{}", file.display()), &format!("Imported configuration from '{}'", file.display())).await?;
+    
+    println!("✅ Configuration imported from: {}", file.display().to_string().green());
+    
+    Ok(())
+}
+
+// =====================================================
+// Diff and History Commands
+// =====================================================
+
+pub async fn handle_diff(backup_name: Option<&str>) -> Result<()> {
+    let current_config = load_config().await?;
+    
+    let (backup_config, backup_display_name) = if let Some(name) = backup_name {
+        // Compare with specific backup
+        let backups_dir = get_backups_dir()?;
+        let backup_file = backups_dir.join(format!("{}.yml", name));
+        
+        if !backup_file.exists() {
+            return Err(anyhow::anyhow!("Backup '{}' not found", name));
+        }
+        
+        let backup_content = fs::read_to_string(&backup_file)?;
+        let (_, backup_config): (BackupMetadata, Config) = serde_yaml::from_str(&backup_content)?;
+        (backup_config, name.to_string())
+    } else {
+        // Compare with latest backup
+        let backups_dir = get_backups_dir()?;
+        
+        if !backups_dir.exists() {
+            println!("📦 No backups found to compare with");
+            return Ok(());
+        }
+        
+        let mut latest_backup = None;
+        let mut latest_time = DateTime::from_timestamp(0, 0).unwrap();
+        
+        for entry in fs::read_dir(&backups_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            
+            if path.extension().and_then(|s| s.to_str()) == Some("yml") {
+                if let Ok(content) = fs::read_to_string(&path) {
+                    if let Ok((metadata, config)) = serde_yaml::from_str::<(BackupMetadata, Config)>(&content) {
+                        if metadata.created_at > latest_time {
+                            latest_time = metadata.created_at;
+                            latest_backup = Some((config, metadata.name));
+                        }
+                    }
+                }
+            }
+        }
+        
+        match latest_backup {
+            Some((config, name)) => (config, format!("{} (latest)", name)),
+            None => {
+                println!("📦 No valid backups found to compare with");
+                return Ok(());
+            }
+        }
+    };
+    
+    println!("{}", format!("🔍 Configuration Diff vs {}", backup_display_name).blue().bold());
+    println!();
+    
+    // Compare configurations
+    show_config_diff(&backup_config, &current_config)?;
+    
+    Ok(())
+}
+
+pub async fn handle_history(limit: usize) -> Result<()> {
+    let history_file = get_history_file()?;
+    
+    if !history_file.exists() {
+        println!("📊 No configuration history found");
+        return Ok(());
+    }
+    
+    let history_content = fs::read_to_string(&history_file)?;
+    let mut history: Vec<ConfigHistory> = serde_yaml::from_str(&history_content).unwrap_or_default();
+    
+    if history.is_empty() {
+        println!("📊 No configuration history found");
+        return Ok(());
+    }
+    
+    // Sort by timestamp (newest first) and limit
+    history.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    history.truncate(limit);
+    
+    println!("{}", "📊 Configuration History".blue().bold());
+    println!();
+    
+    for entry in history {
+        let age = format_duration(Utc::now().signed_duration_since(entry.timestamp));
+        println!("  {} {}", 
+            entry.action.cyan().bold(),
+            format!("({})", age).bright_black()
+        );
+        println!("    📅 {}", entry.timestamp.format("%Y-%m-%d %H:%M:%S UTC"));
+        println!("    📝 {}", entry.details);
+        println!();
+    }
+    
+    Ok(())
+}
+
+// =====================================================
+// Helper Functions
+// =====================================================
+
+async fn add_to_history(action: &str, details: &str) -> Result<()> {
+    let history_file = get_history_file()?;
+    let config = load_config().await?;
+    
+    let mut history: Vec<ConfigHistory> = if history_file.exists() {
+        let content = fs::read_to_string(&history_file)?;
+        serde_yaml::from_str(&content).unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    
+    let entry = ConfigHistory {
+        timestamp: Utc::now(),
+        action: action.to_string(),
+        details: details.to_string(),
+        config_hash: config_hash(&config).unwrap_or_else(|_| "unknown".to_string()),
+    };
+    
+    history.push(entry);
+    
+    // Keep only last 100 entries
+    if history.len() > 100 {
+        history.truncate(100);
+    }
+    
+    let history_yaml = serde_yaml::to_string(&history)?;
+    
+    // Ensure parent directory exists
+    if let Some(parent) = history_file.parent() {
+        ensure_dir_exists(parent)?;
+    }
+    
+    fs::write(&history_file, history_yaml)?;
+    
+    Ok(())
+}
+
+fn show_config_diff(old: &Config, new: &Config) -> Result<()> {
+    // Simple field-by-field comparison
+    if old.github_username != new.github_username {
+        println!("  {} {} → {}", 
+            "github_username:".yellow(),
+            old.github_username.red(),
+            new.github_username.green()
+        );
+    }
+    
+    if old.projects_root_dir != new.projects_root_dir {
+        println!("  {} {} → {}", 
+            "projects_root_dir:".yellow(),
+            old.projects_root_dir.display().to_string().red(),
+            new.projects_root_dir.display().to_string().green()
+        );
+    }
+    
+    if old.editor != new.editor {
+        println!("  {} {} → {}", 
+            "editor:".yellow(),
+            old.editor.red(),
+            new.editor.green()
+        );
+    }
+    
+    if old.settings.auto_open_editor != new.settings.auto_open_editor {
+        println!("  {} {} → {}", 
+            "settings.auto_open_editor:".yellow(),
+            old.settings.auto_open_editor.to_string().red(),
+            new.settings.auto_open_editor.to_string().green()
+        );
+    }
+    
+    if old.settings.show_git_status != new.settings.show_git_status {
+        println!("  {} {} → {}", 
+            "settings.show_git_status:".yellow(),
+            old.settings.show_git_status.to_string().red(),
+            new.settings.show_git_status.to_string().green()
+        );
+    }
+    
+    if old.settings.recent_projects_limit != new.settings.recent_projects_limit {
+        println!("  {} {} → {}", 
+            "settings.recent_projects_limit:".yellow(),
+            old.settings.recent_projects_limit.to_string().red(),
+            new.settings.recent_projects_limit.to_string().green()
+        );
+    }
+    
+    Ok(())
+}
+
+fn format_duration(duration: chrono::TimeDelta) -> String {
+    let total_seconds = duration.num_seconds();
+    
+    if total_seconds < 60 {
+        format!("{}s ago", total_seconds)
+    } else if total_seconds < 3600 {
+        format!("{}m ago", total_seconds / 60)
+    } else if total_seconds < 86400 {
+        format!("{}h ago", total_seconds / 3600)
+    } else {
+        format!("{}d ago", total_seconds / 86400)
+    }
 }
