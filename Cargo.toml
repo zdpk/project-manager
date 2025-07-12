@@ -24,3 +24,7 @@ dirs = "5.0.1"
 chrono = { version = "0.4.38", features = ["serde"] }
 inquire = "0.6.2"
 shellexpand = "1.1.0"
+git2 = "0.18"
+octocrab = "0.38"
+walkdir = "2.4"
+indicatif = "0.17"
