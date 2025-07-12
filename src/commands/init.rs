@@ -1,11 +1,11 @@
 use std::path::PathBuf;
-use crate::config::{get_config_path, save_config, Config};
+use crate::config::{get_config_path, save_config, Config, ConfigSettings};
 use crate::constants::*;
 use crate::display::*;
 use crate::error::PmError;
 use crate::InitMode;
 use anyhow::Result;
-use inquire::{Text, Select};
+use inquire::{Text, Select, Confirm};
 use crate::commands::project;
 
 fn interactive_mode_selection() -> Result<InitMode> {
@@ -51,50 +51,66 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
         }
     };
 
-    // Step 1: Basic configuration
-    let github_username = match Text::new("GitHub username:")
-        .with_help_message("Used for repository cloning and GitHub integration")
-        .prompt() {
-        Ok(username) => username,
-        Err(e) => {
-            display_error("Failed to get GitHub username", &e.to_string());
-            display_info("You can set this later in the config file");
-            return Err(PmError::InitializationFailed.into());
-        }
+    // Step 1: GitHub username configuration
+    let github_username = Text::new("GitHub username:")
+        .with_help_message("Used for repository cloning and GitHub integration (required)")
+        .prompt()?;
+
+    // Step 2: Projects directory configuration
+    let projects_root_dir = {
+        let default_workspace = dirs::home_dir()
+            .map(|home| home.join("workspace"))
+            .unwrap_or_else(|| PathBuf::from("~/workspace"));
+
+        let dir_input = Text::new("Projects root directory:")
+            .with_default(&default_workspace.to_string_lossy())
+            .with_help_message("Where your projects will be stored (press Enter for default)")
+            .prompt()?;
+
+        PathBuf::from(shellexpand::tilde(&dir_input).to_string())
     };
 
-    // Step 2: Determine workspace directory based on mode
-    let projects_root_dir = match selected_mode {
-        InitMode::Detect | InitMode::All => {
-            // Auto-detect ~/workspace or use home directory
-            let home_dir = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
-            let workspace_dir = home_dir.join("workspace");
-            
-            if workspace_dir.exists() {
-                println!("✅ Auto-detected workspace directory: {}", workspace_dir.display());
-                workspace_dir
-            } else {
-                println!("📁 ~/workspace not found, using default location");
-                let default_path = Text::new("Projects root directory path:")
-                    .with_default(DEFAULT_WORKSPACE_DIR)
-                    .with_help_message("Where your projects will be stored")
-                    .prompt()?;
-                PathBuf::from(shellexpand::tilde(&default_path).to_string())
-            }
-        }
-        _ => {
-            // Manual setup for Load and None modes
-            let default_path = Text::new("Projects root directory path:")
-                .with_default(DEFAULT_WORKSPACE_DIR)
-                .with_help_message("Where your projects will be stored")
-                .prompt()?;
-            PathBuf::from(shellexpand::tilde(&default_path).to_string())
-        }
+    // Step 3: Editor configuration
+    let editor_options = vec![
+        "code (Visual Studio Code)",
+        "hx (Helix)",
+        "nvim (Neovim)", 
+        "vim (Vim)",
+        "nano (Nano)",
+        "emacs (Emacs)",
+        "Other (custom command)",
+    ];
+
+    let selected_editor = Select::new("Choose your preferred editor:", editor_options)
+        .prompt()?;
+
+    let editor = match selected_editor {
+        "code (Visual Studio Code)" => "code".to_string(),
+        "hx (Helix)" => "hx".to_string(),
+        "nvim (Neovim)" => "nvim".to_string(),
+        "vim (Vim)" => "vim".to_string(),
+        "nano (Nano)" => "nano".to_string(),
+        "emacs (Emacs)" => "emacs".to_string(),
+        "Other (custom command)" => {
+            Text::new("Enter custom editor command:")
+                .with_help_message("e.g., 'subl', 'atom', 'idea'")
+                .prompt()?
+        },
+        _ => "code".to_string(), // fallback
     };
+
+    // Step 4: Additional settings
+    let auto_open_editor = Confirm::new("Automatically open editor when switching to projects?")
+        .with_default(true)
+        .prompt()?;
+
+    let show_git_status = Confirm::new("Show git status in project listings?")
+        .with_default(true)
+        .prompt()?;
 
     // Create the projects root directory if it doesn't exist
     if !projects_root_dir.exists() {
-        println!("📁 Creating projects root directory: {}", projects_root_dir.display());
+        println!("\n📁 Creating projects root directory: {}", projects_root_dir.display());
         if let Err(e) = std::fs::create_dir_all(&projects_root_dir) {
             display_error("Failed to create directory", &e.to_string());
             println!("   Path: {}", projects_root_dir.display());
@@ -102,12 +118,19 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
         }
     }
 
-    // Step 3: Create and save initial configuration
+    // Step 5: Create and save configuration
     let config = Config {
         version: crate::constants::CONFIG_VERSION.to_string(),
         github_username: github_username.clone(),
         projects_root_dir: projects_root_dir.clone(),
-        ..Default::default()
+        editor,
+        settings: ConfigSettings {
+            auto_open_editor,
+            show_git_status,
+            recent_projects_limit: 10, // default
+        },
+        projects: std::collections::HashMap::new(),
+        machine_metadata: std::collections::HashMap::new(),
     };
 
     save_config(&config).await?;

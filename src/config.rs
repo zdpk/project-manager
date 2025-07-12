@@ -82,8 +82,8 @@ impl Default for Config {
         Self {
             version: CONFIG_VERSION.to_string(),
             github_username: String::new(),
-            projects_root_dir: PathBuf::from(shellexpand::tilde(DEFAULT_WORKSPACE_DIR).to_string()),
-            editor: default_editor(),
+            projects_root_dir: PathBuf::new(),
+            editor: String::new(), // 빈 문자열로 초기화
             settings: ConfigSettings::default(),
             projects: HashMap::new(),
             machine_metadata: HashMap::new(),
@@ -127,7 +127,7 @@ pub async fn generate_schema() -> Result<()> {
 pub async fn load_config() -> Result<Config> {
     let path = get_config_path()?;
     if !path.exists() {
-        return Ok(Config::default());
+        return Err(anyhow::anyhow!("Configuration file not found. Run 'pm init' to initialize."));
     }
     let content = fs::read_to_string(path).await?;
     let config: Config = serde_yaml::from_str(&content)?;

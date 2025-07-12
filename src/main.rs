@@ -19,6 +19,18 @@ use commands::{init, project, tag, config as config_cmd};
 use commands::config::ExportFormat;
 use error::handle_error;
 use constants::*;
+use display::display_error;
+
+fn handle_config_error(e: anyhow::Error) -> ! {
+    if e.to_string().contains("Configuration file not found") {
+        display_error("PM not initialized", "Configuration file not found");
+        println!("\n💡 Please initialize PM first:");
+        println!("   pm init");
+        std::process::exit(1);
+    } else {
+        handle_error(e, ERROR_CONFIG_LOAD);
+    }
+}
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -366,12 +378,12 @@ async fn main() {
     match &cli.command {
         Commands::Add { path, name, tags, description } => {
             if let Err(e) = project::handle_add(path, name, tags, description).await {
-                handle_error(e, ERROR_CONFIG_LOAD);
+                handle_config_error(e);
             }
         }
         Commands::List { tags, tags_any, recent, limit, detailed } => {
             if let Err(e) = project::handle_list(tags, tags_any, recent, limit, *detailed).await {
-                handle_error(e, ERROR_CONFIG_LOAD);
+                handle_config_error(e);
             }
         }
         Commands::Switch { name, no_editor } => {
@@ -382,26 +394,26 @@ async fn main() {
                     }
                 }
                 Err(e) => {
-                    handle_error(e, ERROR_CONFIG_LOAD);
+                    handle_config_error(e);
                 }
             }
         }
         Commands::Project(project_command) => match project_command {
             ProjectCommands::Add { path, name, tags, description } => {
                 if let Err(e) = project::handle_add(path, name, tags, description).await {
-                    handle_error(e, ERROR_CONFIG_LOAD);
+                    handle_config_error(e);
                 }
             }
             ProjectCommands::List { tags, tags_any, recent, limit, detailed } => {
                 if let Err(e) = project::handle_list(tags, tags_any, recent, limit, *detailed).await {
-                    handle_error(e, ERROR_CONFIG_LOAD);
+                    handle_config_error(e);
                 }
             }
             ProjectCommands::Switch { name, no_editor } => {
                 let mut config = match load_config().await {
                     Ok(config) => config,
                     Err(e) => {
-                        handle_error(e, ERROR_CONFIG_LOAD);
+                        handle_config_error(e);
                     }
                 };
 
@@ -413,54 +425,54 @@ async fn main() {
         Commands::Tag { action } => match action {
             TagAction::Add { project_name, tags } => {
                 if let Err(e) = tag::handle_tag_add(project_name, tags).await {
-                    handle_error(e, "Failed to add tags");
+                    handle_config_error(e);
                 }
             }
             TagAction::Remove { project_name, tags } => {
                 if let Err(e) = tag::handle_tag_remove(project_name, tags).await {
-                    handle_error(e, "Failed to remove tags");
+                    handle_config_error(e);
                 }
             }
             TagAction::List {} => {
                 if let Err(e) = tag::handle_tag_list().await {
-                    handle_error(e, "Failed to list tags");
+                    handle_config_error(e);
                 }
             }
             TagAction::Show { project_name } => {
                 if let Err(e) = tag::handle_tag_show(project_name.as_deref()).await {
-                    handle_error(e, "Failed to show tags");
+                    handle_config_error(e);
                 }
             }
         },
         Commands::Config(config_command) => match config_command {
             ConfigCommands::Show {} => {
                 if let Err(e) = config_cmd::handle_show().await {
-                    handle_error(e, "Failed to show config");
+                    handle_config_error(e);
                 }
             }
             ConfigCommands::Edit {} => {
                 if let Err(e) = config_cmd::handle_edit().await {
-                    handle_error(e, "Failed to edit config");
+                    handle_config_error(e);
                 }
             }
             ConfigCommands::Validate {} => {
                 if let Err(e) = config_cmd::handle_validate().await {
-                    handle_error(e, "Failed to validate config");
+                    handle_config_error(e);
                 }
             }
             ConfigCommands::Reset {} => {
                 if let Err(e) = config_cmd::handle_reset().await {
-                    handle_error(e, "Failed to reset config");
+                    handle_config_error(e);
                 }
             }
             ConfigCommands::Get { key } => {
                 if let Err(e) = config_cmd::handle_get(key).await {
-                    handle_error(e, "Failed to get config value");
+                    handle_config_error(e);
                 }
             }
             ConfigCommands::Set { key, value } => {
                 if let Err(e) = config_cmd::handle_set(key, value).await {
-                    handle_error(e, "Failed to set config value");
+                    handle_config_error(e);
                 }
             }
             ConfigCommands::List {} => {
@@ -545,12 +557,12 @@ async fn main() {
         }
         Commands::Scan { directory, show_all } => {
             if let Err(e) = project::handle_scan(directory.as_deref(), *show_all).await {
-                handle_error(e, "Failed to scan for repositories");
+                handle_config_error(e);
             }
         }
         Commands::Load { repo, directory } => {
             if let Err(e) = project::handle_load(repo, directory.as_deref()).await {
-                handle_error(e, "Failed to load repository");
+                handle_config_error(e);
             }
         }
     }
