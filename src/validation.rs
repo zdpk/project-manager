@@ -1,7 +1,7 @@
-use std::path::PathBuf;
-use chrono::Duration;
-use anyhow::{Result, Context};
 use crate::constants::*;
+use anyhow::{Context, Result};
+use chrono::Duration;
+use std::path::PathBuf;
 
 pub fn validate_path(path: &PathBuf) -> Result<PathBuf> {
     if !path.exists() {
@@ -40,7 +40,8 @@ pub fn parse_time_duration(duration_str: &str) -> Result<Duration, String> {
         return Err("Invalid duration format".to_string());
     };
 
-    let number: i64 = number_part.parse()
+    let number: i64 = number_part
+        .parse()
         .map_err(|_| format!("Invalid number: {}", number_part))?;
 
     match unit_part.to_lowercase().as_str() {
@@ -50,7 +51,10 @@ pub fn parse_time_duration(duration_str: &str) -> Result<Duration, String> {
         "d" | "day" | "days" => Ok(Duration::days(number)),
         "w" | "week" | "weeks" => Ok(Duration::weeks(number)),
         "y" | "year" | "years" => Ok(Duration::days(number * 365)),
-        _ => Err(format!("Unknown time unit: {}. Use s, m, h, d, w, or y", unit_part))
+        _ => Err(format!(
+            "Unknown time unit: {}. Use s, m, h, d, w, or y",
+            unit_part
+        )),
     }
 }
 
@@ -107,10 +111,10 @@ mod tests {
         assert_eq!(parse_time_duration("7d").unwrap(), Duration::days(7));
         assert_eq!(parse_time_duration("2w").unwrap(), Duration::weeks(2));
         assert_eq!(parse_time_duration("1y").unwrap(), Duration::days(365));
-        
+
         // Default to days if no unit specified
         assert_eq!(parse_time_duration("7").unwrap(), Duration::days(7));
-        
+
         // Error cases
         assert!(parse_time_duration("").is_err());
         assert!(parse_time_duration("abc").is_err());

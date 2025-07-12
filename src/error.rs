@@ -41,7 +41,6 @@ impl fmt::Display for PmError {
 
 impl std::error::Error for PmError {}
 
-
 pub fn handle_error(error: anyhow::Error, context: &str) -> ! {
     eprintln!("❌ {}: {}", context, error);
     std::process::exit(1);

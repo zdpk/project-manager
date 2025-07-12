@@ -1,23 +1,28 @@
-use std::path::{Path, PathBuf};
-use chrono::Utc;
-use uuid::Uuid;
 use crate::config::{load_config, save_config, Config};
 use crate::constants::*;
 use crate::display::*;
 use crate::error::PmError;
 use crate::utils::get_last_git_commit_time;
-use crate::validation::{validate_path, parse_time_duration};
+use crate::validation::{parse_time_duration, validate_path};
 use crate::Project;
 use anyhow::Result;
-use std::collections::HashSet;
-use walkdir::WalkDir;
-use git2::Repository;
-use inquire::{MultiSelect, Confirm};
-use indicatif::{ProgressBar, ProgressStyle};
-use std::fs;
+use chrono::Utc;
 use colored::*;
+use git2::Repository;
+use indicatif::{ProgressBar, ProgressStyle};
+use inquire::{Confirm, MultiSelect};
+use std::collections::HashSet;
+use std::fs;
+use std::path::{Path, PathBuf};
+use uuid::Uuid;
+use walkdir::WalkDir;
 
-pub async fn handle_add(path: &PathBuf, name: &Option<String>, tags: &[String], description: &Option<String>) -> Result<()> {
+pub async fn handle_add(
+    path: &PathBuf,
+    name: &Option<String>,
+    tags: &[String],
+    description: &Option<String>,
+) -> Result<()> {
     let mut config = load_config().await?;
 
     let resolved_path = if path.is_absolute() {
@@ -29,15 +34,19 @@ pub async fn handle_add(path: &PathBuf, name: &Option<String>, tags: &[String], 
     // Check if directory exists
     let absolute_path = if !resolved_path.exists() {
         // Directory doesn't exist - prompt user to create it
-        match Confirm::new(&format!("Directory '{}' doesn't exist. Create it?", resolved_path.display()))
-            .with_default(true)
-            .prompt() {
+        match Confirm::new(&format!(
+            "Directory '{}' doesn't exist. Create it?",
+            resolved_path.display()
+        ))
+        .with_default(true)
+        .prompt()
+        {
             Ok(create_dir) => {
                 if !create_dir {
                     println!("❌ Directory creation cancelled. Project not added.");
                     return Ok(());
                 }
-            },
+            }
             Err(_) => {
                 // Non-interactive environment - create directory automatically
                 println!("ℹ️  Non-interactive mode: Creating directory automatically");
@@ -47,7 +56,7 @@ pub async fn handle_add(path: &PathBuf, name: &Option<String>, tags: &[String], 
         // Create the directory
         fs::create_dir_all(&resolved_path)?;
         println!("✅ Created directory: {}", resolved_path.display());
-        
+
         // Now validate the created path
         validate_path(&resolved_path)?
     } else {
@@ -57,17 +66,28 @@ pub async fn handle_add(path: &PathBuf, name: &Option<String>, tags: &[String], 
 
     // Check for duplicate projects (path-based)
     if config.projects.values().any(|p| p.path == absolute_path) {
-        println!("ℹ️  Project already exists at this path: {}", absolute_path.display());
+        println!(
+            "ℹ️  Project already exists at this path: {}",
+            absolute_path.display()
+        );
         if let Some(existing_project) = config.projects.values().find(|p| p.path == absolute_path) {
             println!("   Project name: '{}'", existing_project.name);
-            println!("   Tags: {}", if existing_project.tags.is_empty() { "none".to_string() } else { existing_project.tags.join(", ") });
+            println!(
+                "   Tags: {}",
+                if existing_project.tags.is_empty() {
+                    "none".to_string()
+                } else {
+                    existing_project.tags.join(", ")
+                }
+            );
         }
         println!("💡 Use 'pm project list' to see all projects");
         return Ok(());
     }
 
     let project_name = name.clone().unwrap_or_else(|| {
-        absolute_path.file_name()
+        absolute_path
+            .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or("unnamed-project")
             .to_string()
@@ -75,12 +95,22 @@ pub async fn handle_add(path: &PathBuf, name: &Option<String>, tags: &[String], 
 
     // Check for duplicate project names
     if config.projects.values().any(|p| p.name == project_name) {
-        display_error(ERROR_DUPLICATE_PROJECT, &format!("with name '{}'", project_name));
-        display_info(&format!("Use a different name with: pm add {} --name <new-name>", path.display()));
+        display_error(
+            ERROR_DUPLICATE_PROJECT,
+            &format!("with name '{}'", project_name),
+        );
+        display_info(&format!(
+            "Use a different name with: pm add {} --name <new-name>",
+            path.display()
+        ));
         return Err(PmError::DuplicateProject.into());
     }
 
-    println!("📂 Adding project '{}' at: {}", project_name, absolute_path.display());
+    println!(
+        "📂 Adding project '{}' at: {}",
+        project_name,
+        absolute_path.display()
+    );
 
     let git_updated_at = match get_last_git_commit_time(&absolute_path) {
         Ok(time) => time,
@@ -113,11 +143,17 @@ pub async fn handle_add(path: &PathBuf, name: &Option<String>, tags: &[String], 
         println!("   Description: {}", desc);
     }
     println!("   Path: {}", absolute_path.display());
-    
+
     Ok(())
 }
 
-pub async fn handle_list(tags: &[String], tags_any: &[String], recent: &Option<String>, limit: &Option<usize>, detailed: bool) -> Result<()> {
+pub async fn handle_list(
+    tags: &[String],
+    tags_any: &[String],
+    recent: &Option<String>,
+    limit: &Option<usize>,
+    detailed: bool,
+) -> Result<()> {
     let config = load_config().await?;
 
     if config.projects.is_empty() {
@@ -126,7 +162,7 @@ pub async fn handle_list(tags: &[String], tags_any: &[String], recent: &Option<S
     }
 
     let project_ids: Vec<uuid::Uuid> = config.projects.keys().cloned().collect();
-    
+
     // Update git_updated_at for projects in the background
     update_git_times_by_ids(&project_ids).await;
 
@@ -140,7 +176,10 @@ pub async fn handle_list(tags: &[String], tags_any: &[String], recent: &Option<S
 
     // Apply limit
     let limited_project_data = if let Some(limit_count) = limit {
-        filtered_project_data.into_iter().take(*limit_count).collect()
+        filtered_project_data
+            .into_iter()
+            .take(*limit_count)
+            .collect()
     } else {
         filtered_project_data
     };
@@ -171,7 +210,10 @@ pub async fn handle_switch(config: &mut Config, name: &str, no_editor: bool) -> 
 
         // Check if project path still exists
         if !project_path.exists() {
-            display_error(ERROR_PROJECT_NOT_FOUND, &format!("path no longer exists: {}", project_path.display()));
+            display_error(
+                ERROR_PROJECT_NOT_FOUND,
+                &format!("path no longer exists: {}", project_path.display()),
+            );
             println!("\n💡 Suggestions:");
             println!("  - Update the project path");
             println!("  - Remove the project: pm project remove {}", project_name);
@@ -180,24 +222,24 @@ pub async fn handle_switch(config: &mut Config, name: &str, no_editor: bool) -> 
 
         // Record access before switching
         config.record_project_access(project_id);
-        
+
         // Get access info for display
         let (last_accessed, access_count) = config.get_project_access_info(project_id);
-        
+
         display_switch_info(&project_name, access_count, last_accessed);
-        
+
         if let Err(e) = std::env::set_current_dir(&project_path) {
             display_error(ERROR_DIRECTORY_CHANGE, &e.to_string());
             println!("   Path: {}", project_path.display());
             return Err(PmError::DirectoryChangeFailed.into());
         }
-        
+
         // Save config with updated access tracking
         if let Err(e) = save_config(&config).await {
             display_warning(&format!("Failed to save access tracking: {}", e));
             // Continue anyway, don't fail the switch operation
         }
-        
+
         display_switch_success(&project_path, no_editor);
 
         if !no_editor {
@@ -207,7 +249,7 @@ pub async fn handle_switch(config: &mut Config, name: &str, no_editor: bool) -> 
                     if !status.success() {
                         display_warning(&format!("Editor exited with status: {}", status));
                     }
-                },
+                }
                 Err(e) => {
                     display_editor_error(&e.to_string());
                 }
@@ -217,23 +259,25 @@ pub async fn handle_switch(config: &mut Config, name: &str, no_editor: bool) -> 
         Ok(())
     } else {
         display_error(ERROR_PROJECT_NOT_FOUND, &format!("'{}'", name));
-        
+
         let suggestions = suggest_similar_projects(&config, name);
         display_suggestions(&suggestions);
-        
+
         Err(PmError::ProjectNotFound.into())
     }
 }
 
 fn suggest_similar_projects(config: &Config, target: &str) -> Vec<String> {
-    config.projects.values()
+    config
+        .projects
+        .values()
         .map(|p| &p.name)
         .filter(|name| {
             // Simple similarity check - contains substring or starts with same chars
-            name.to_lowercase().contains(&target.to_lowercase()) ||
-            target.to_lowercase().contains(&name.to_lowercase()) ||
-            name.chars().take(3).collect::<String>().to_lowercase() == 
-            target.chars().take(3).collect::<String>().to_lowercase()
+            name.to_lowercase().contains(&target.to_lowercase())
+                || target.to_lowercase().contains(&name.to_lowercase())
+                || name.chars().take(3).collect::<String>().to_lowercase()
+                    == target.chars().take(3).collect::<String>().to_lowercase()
         })
         .map(|s| s.clone())
         .collect()
@@ -242,13 +286,14 @@ fn suggest_similar_projects(config: &Config, target: &str) -> Vec<String> {
 async fn update_git_times_by_ids(project_ids: &[uuid::Uuid]) {
     use crate::config::load_config;
     use crate::constants::GIT_UPDATE_INTERVAL_HOURS;
-    
+
     for &project_id in project_ids {
         tokio::spawn(async move {
             if let Ok(config) = load_config().await {
                 if let Some(project) = config.projects.get(&project_id) {
-                    let needs_update = project.git_updated_at.is_none() || 
-                                       (Utc::now() - project.git_updated_at.unwrap()).num_hours() >= GIT_UPDATE_INTERVAL_HOURS;
+                    let needs_update = project.git_updated_at.is_none()
+                        || (Utc::now() - project.git_updated_at.unwrap()).num_hours()
+                            >= GIT_UPDATE_INTERVAL_HOURS;
                     if needs_update {
                         let project_path = project.path.clone();
                         if let Ok(Some(git_time)) = get_last_git_commit_time(&project_path) {
@@ -266,8 +311,15 @@ async fn update_git_times_by_ids(project_ids: &[uuid::Uuid]) {
     }
 }
 
-fn get_filtered_project_data(config: &Config, tags: &[String], tags_any: &[String], recent: &Option<String>) -> Result<Vec<(Project, Option<chrono::DateTime<chrono::Utc>>, u32)>> {
-    let mut project_data: Vec<(Project, Option<chrono::DateTime<chrono::Utc>>, u32)> = config.projects.values()
+fn get_filtered_project_data(
+    config: &Config,
+    tags: &[String],
+    tags_any: &[String],
+    recent: &Option<String>,
+) -> Result<Vec<(Project, Option<chrono::DateTime<chrono::Utc>>, u32)>> {
+    let mut project_data: Vec<(Project, Option<chrono::DateTime<chrono::Utc>>, u32)> = config
+        .projects
+        .values()
         .filter(|project| {
             // Tags filter (AND logic - all tags must match)
             if !tags.is_empty() {
@@ -294,9 +346,12 @@ fn get_filtered_project_data(config: &Config, tags: &[String], tags_any: &[Strin
                         if last_activity < cutoff {
                             return false;
                         }
-                    },
+                    }
                     Err(_) => {
-                        display_warning(&format!("Invalid time format: {}. Using default of {} days.", recent_str, DEFAULT_RECENT_DAYS));
+                        display_warning(&format!(
+                            "Invalid time format: {}. Using default of {} days.",
+                            recent_str, DEFAULT_RECENT_DAYS
+                        ));
                         let cutoff = Utc::now() - chrono::Duration::days(DEFAULT_RECENT_DAYS);
                         let last_activity = project.git_updated_at.unwrap_or(project.updated_at);
                         if last_activity < cutoff {
@@ -317,7 +372,8 @@ fn get_filtered_project_data(config: &Config, tags: &[String], tags_any: &[Strin
 
     // Sort projects: git_updated_at (later), updated_at, created_at
     project_data.sort_by(|a, b| {
-        b.0.git_updated_at.cmp(&a.0.git_updated_at)
+        b.0.git_updated_at
+            .cmp(&a.0.git_updated_at)
             .then_with(|| b.0.updated_at.cmp(&a.0.updated_at))
             .then_with(|| b.0.created_at.cmp(&a.0.created_at))
     });
@@ -335,13 +391,14 @@ struct GitRepoInfo {
 
 pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()> {
     let config = load_config().await?;
-    
+
     // Determine scan directory
     let scan_dir = if let Some(dir) = directory {
         dir.to_path_buf()
     } else {
         // Default to ~/workspace, fallback to home directory
-        let home_dir = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+        let home_dir = dirs::home_dir()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
         let workspace_dir = home_dir.join("workspace");
         if workspace_dir.exists() {
             workspace_dir
@@ -352,19 +409,27 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()>
     };
 
     if !scan_dir.exists() {
-        return Err(anyhow::anyhow!("Directory does not exist: {}", scan_dir.display()));
+        return Err(anyhow::anyhow!(
+            "Directory does not exist: {}",
+            scan_dir.display()
+        ));
     }
 
-    println!("🔍 Scanning for Git repositories in: {}", scan_dir.display());
-    
+    println!(
+        "🔍 Scanning for Git repositories in: {}",
+        scan_dir.display()
+    );
+
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner()
-        .template("{spinner:.green} {msg}")
-        .unwrap());
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
     pb.set_message("Scanning directories...");
 
     let mut repositories = Vec::new();
-    
+
     // Walk through directory structure with smart filtering
     for entry in WalkDir::new(&scan_dir)
         .max_depth(3)
@@ -377,17 +442,18 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()>
                 true // Always process files
             }
         })
-        .filter_map(|e| e.ok()) 
+        .filter_map(|e| e.ok())
     {
         if entry.file_type().is_dir() {
             let path = entry.path();
-            
+
             // Skip the scan directory itself
             if path == scan_dir {
                 continue;
             }
 
-            let name = path.file_name()
+            let name = path
+                .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("unnamed")
                 .to_string();
@@ -421,11 +487,11 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()>
     }
 
     // Filter out already tracked projects
-    let existing_paths: HashSet<PathBuf> = config.projects.values()
-        .map(|p| p.path.clone())
-        .collect();
+    let existing_paths: HashSet<PathBuf> =
+        config.projects.values().map(|p| p.path.clone()).collect();
 
-    let new_repos: Vec<GitRepoInfo> = repositories.into_iter()
+    let new_repos: Vec<GitRepoInfo> = repositories
+        .into_iter()
         .filter(|repo| !existing_paths.contains(&repo.path))
         .collect();
 
@@ -439,7 +505,8 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()>
     if show_all {
         // Just display all repositories
         for repo in &new_repos {
-            println!("  {} {} {}", 
+            println!(
+                "  {} {} {}",
                 if repo.is_git { "🔗" } else { "📁" },
                 repo.name,
                 repo.path.display().to_string().bright_black()
@@ -452,7 +519,8 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()>
     }
 
     // Interactive selection
-    let options: Vec<String> = new_repos.iter()
+    let options: Vec<String> = new_repos
+        .iter()
         .map(|repo| {
             let prefix = if repo.is_git { "🔗" } else { "📁" };
             format!("{} {} ({})", prefix, repo.name, repo.path.display())
@@ -464,8 +532,7 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()>
         return Ok(());
     }
 
-    let selection = MultiSelect::new("Select repositories to add to PM:", options)
-        .prompt()?;
+    let selection = MultiSelect::new("Select repositories to add to PM:", options).prompt()?;
 
     if selection.is_empty() {
         println!("❌ No repositories selected");
@@ -479,9 +546,10 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()>
     for selected in selection {
         // Find the repository by matching the display string
         if let Some(repo) = new_repos.iter().find(|r| {
-            let expected = format!("{} {} ({})", 
-                if r.is_git { "🔗" } else { "📁" }, 
-                r.name, 
+            let expected = format!(
+                "{} {} ({})",
+                if r.is_git { "🔗" } else { "📁" },
+                r.name,
                 r.path.display()
             );
             expected == selected
@@ -536,7 +604,10 @@ pub async fn handle_load(repo: &str, directory: Option<&Path>) -> Result<()> {
     };
 
     if target_dir.exists() {
-        return Err(anyhow::anyhow!("Directory already exists: {}", target_dir.display()));
+        return Err(anyhow::anyhow!(
+            "Directory already exists: {}",
+            target_dir.display()
+        ));
     }
 
     // Create parent directories if needed
@@ -549,9 +620,11 @@ pub async fn handle_load(repo: &str, directory: Option<&Path>) -> Result<()> {
 
     // Clone the repository
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner()
-        .template("{spinner:.green} {msg}")
-        .unwrap());
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
     pb.set_message("Cloning repository...");
 
     let _repo = Repository::clone(&clone_url, &target_dir)
@@ -600,17 +673,42 @@ fn should_skip_directory(path: &Path) -> bool {
     // Always skip these directories
     let always_skip = [
         // Git metadata and version control
-        ".git", ".svn", ".hg", ".bzr",
+        ".git",
+        ".svn",
+        ".hg",
+        ".bzr",
         // Dependencies and build artifacts
-        "node_modules", "vendor", "target", "build", "dist", "out",
+        "node_modules",
+        "vendor",
+        "target",
+        "build",
+        "dist",
+        "out",
         // Caches and temporary files
-        ".cache", ".npm", ".yarn", ".pnpm", "__pycache__", ".pytest_cache",
+        ".cache",
+        ".npm",
+        ".yarn",
+        ".pnpm",
+        "__pycache__",
+        ".pytest_cache",
         // IDE and editor directories
-        ".vscode", ".idea", ".vs", ".eclipse", ".netbeans",
+        ".vscode",
+        ".idea",
+        ".vs",
+        ".eclipse",
+        ".netbeans",
         // System and temporary
-        ".DS_Store", "tmp", "temp", ".tmp", ".temp",
+        ".DS_Store",
+        "tmp",
+        "temp",
+        ".tmp",
+        ".temp",
         // Other common excludes
-        "coverage", ".nyc_output", ".next", ".nuxt", ".gradle",
+        "coverage",
+        ".nyc_output",
+        ".next",
+        ".nuxt",
+        ".gradle",
     ];
 
     if always_skip.contains(&name) {
@@ -633,20 +731,33 @@ fn is_project_root(path: &Path) -> bool {
 
     // Check if it's a git repository at the root level (has .git subdirectory)
     let has_git_dir = path.join(".git").exists();
-    
+
     // Check for project files
     let has_project_files = contains_project_files(path);
-    
+
     // Consider it a project root if it has either git or project files
     has_git_dir || has_project_files
 }
 
 fn contains_project_files(path: &Path) -> bool {
     let project_indicators = [
-        "package.json", "Cargo.toml", "pyproject.toml", "go.mod", 
-        "pom.xml", "build.gradle", "Makefile", ".project", "composer.json",
-        "requirements.txt", "setup.py", "Gemfile", "mix.exs", "deno.json"
+        "package.json",
+        "Cargo.toml",
+        "pyproject.toml",
+        "go.mod",
+        "pom.xml",
+        "build.gradle",
+        "Makefile",
+        ".project",
+        "composer.json",
+        "requirements.txt",
+        "setup.py",
+        "Gemfile",
+        "mix.exs",
+        "deno.json",
     ];
-    
-    project_indicators.iter().any(|&file| path.join(file).exists())
+
+    project_indicators
+        .iter()
+        .any(|&file| path.join(file).exists())
 }

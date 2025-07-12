@@ -1,12 +1,12 @@
-use std::path::PathBuf;
+use crate::commands::project;
 use crate::config::{get_config_path, save_config, Config, ConfigSettings};
 use crate::constants::*;
 use crate::display::*;
 use crate::error::PmError;
 use crate::InitMode;
 use anyhow::Result;
-use inquire::{Text, Select, Confirm};
-use crate::commands::project;
+use inquire::{Confirm, Select, Text};
+use std::path::PathBuf;
 
 fn interactive_mode_selection() -> Result<InitMode> {
     let mode_options = vec![
@@ -16,8 +16,7 @@ fn interactive_mode_selection() -> Result<InitMode> {
         "⚙️ Manual setup only",
     ];
 
-    let selected = Select::new("Choose your setup preference:", mode_options)
-        .prompt()?;
+    let selected = Select::new("Choose your setup preference:", mode_options).prompt()?;
 
     // Map the selected option to the corresponding mode
     match selected {
@@ -33,7 +32,10 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
     let config_path = get_config_path()?;
 
     if config_path.exists() {
-        display_success(&format!("{} is already initialized", APP_NAME.to_uppercase()));
+        display_success(&format!(
+            "{} is already initialized",
+            APP_NAME.to_uppercase()
+        ));
         println!("📁 Configuration file: {}", config_path.display());
         println!("\n💡 To reinitialize, delete the config file first:");
         println!("   rm {}", config_path.display());
@@ -44,8 +46,9 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
 
     // Determine the mode to use
     let selected_mode = match mode {
-        Some(m) => *m,  // Use explicitly specified mode
-        None => {       // Show interactive selection
+        Some(m) => *m, // Use explicitly specified mode
+        None => {
+            // Show interactive selection
             println!("Select your initialization preference:\n");
             interactive_mode_selection()?
         }
@@ -74,15 +77,14 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
     let editor_options = vec![
         "code (Visual Studio Code)",
         "hx (Helix)",
-        "nvim (Neovim)", 
+        "nvim (Neovim)",
         "vim (Vim)",
         "nano (Nano)",
         "emacs (Emacs)",
         "Other (custom command)",
     ];
 
-    let selected_editor = Select::new("Choose your preferred editor:", editor_options)
-        .prompt()?;
+    let selected_editor = Select::new("Choose your preferred editor:", editor_options).prompt()?;
 
     let editor = match selected_editor {
         "code (Visual Studio Code)" => "code".to_string(),
@@ -91,11 +93,9 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
         "vim (Vim)" => "vim".to_string(),
         "nano (Nano)" => "nano".to_string(),
         "emacs (Emacs)" => "emacs".to_string(),
-        "Other (custom command)" => {
-            Text::new("Enter custom editor command:")
-                .with_help_message("e.g., 'subl', 'atom', 'idea'")
-                .prompt()?
-        },
+        "Other (custom command)" => Text::new("Enter custom editor command:")
+            .with_help_message("e.g., 'subl', 'atom', 'idea'")
+            .prompt()?,
         _ => "code".to_string(), // fallback
     };
 
@@ -110,7 +110,10 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
 
     // Create the projects root directory if it doesn't exist
     if !projects_root_dir.exists() {
-        println!("\n📁 Creating projects root directory: {}", projects_root_dir.display());
+        println!(
+            "\n📁 Creating projects root directory: {}",
+            projects_root_dir.display()
+        );
         if let Err(e) = std::fs::create_dir_all(&projects_root_dir) {
             display_error("Failed to create directory", &e.to_string());
             println!("   Path: {}", projects_root_dir.display());
@@ -148,18 +151,18 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
         InitMode::Load => {
             println!("\n🌐 GitHub integration ready!");
             println!("💡 Use 'pm load owner/repo' to clone and add repositories");
-            
+
             // Optionally prompt for first repository
             let load_repo = inquire::Confirm::new("Would you like to clone a repository now?")
                 .with_default(false)
                 .prompt()
                 .unwrap_or(false);
-                
+
             if load_repo {
                 let repo = Text::new("Repository (owner/repo format):")
                     .with_help_message("e.g., microsoft/vscode or your-username/my-project")
                     .prompt()?;
-                    
+
                 if let Err(e) = project::handle_load(&repo, None).await {
                     display_warning(&format!("Failed to load repository: {}", e));
                     println!("💡 You can try again with: pm load {}", repo);
@@ -172,19 +175,19 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
             if let Err(e) = project::handle_scan(Some(&projects_root_dir), false).await {
                 display_warning(&format!("Auto-detection failed: {}", e));
             }
-            
+
             // Then offer GitHub integration
             println!("\n🌐 GitHub integration ready!");
             let load_repo = inquire::Confirm::new("Would you like to clone a repository now?")
                 .with_default(false)
                 .prompt()
                 .unwrap_or(false);
-                
+
             if load_repo {
                 let repo = Text::new("Repository (owner/repo format):")
                     .with_help_message("e.g., microsoft/vscode or your-username/my-project")
                     .prompt()?;
-                    
+
                 if let Err(e) = project::handle_load(&repo, None).await {
                     display_warning(&format!("Failed to load repository: {}", e));
                     println!("💡 You can try again with: pm load {}", repo);
@@ -202,6 +205,6 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
 
     println!("\n🎉 {} initialized successfully!", APP_NAME.to_uppercase());
     println!("📖 Use 'pm --help' to see all available commands");
-    
+
     Ok(())
 }

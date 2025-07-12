@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use std::process::Command;
 use std::path::Path;
+use std::process::Command;
 
 pub fn get_last_git_commit_time(path: &Path) -> Result<Option<DateTime<Utc>>> {
     if !path.join(".git").exists() {
@@ -119,7 +119,8 @@ pub fn is_git_repository(path: &Path) -> bool {
 
 pub fn detect_project_language(path: &Path) -> Option<String> {
     let files = std::fs::read_dir(path).ok()?;
-    let mut language_counts: std::collections::HashMap<&str, u32> = std::collections::HashMap::new();
+    let mut language_counts: std::collections::HashMap<&str, u32> =
+        std::collections::HashMap::new();
 
     for file in files {
         if let Ok(entry) = file {

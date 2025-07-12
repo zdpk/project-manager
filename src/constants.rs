@@ -42,4 +42,5 @@ pub const SUGGESTION_USE_PM_LS: &str = "Use 'pm ls' to see all available project
 pub const SUGGESTION_ADD_FIRST_PROJECT: &str = "Add your first project with: pm add <path>";
 pub const SUGGESTION_INSTALL_HELIX: &str = "Install Helix editor: https://helix-editor.com/";
 pub const SUGGESTION_USE_NO_EDITOR: &str = "Use --no-editor flag to skip editor";
-pub const SUGGESTION_SET_EDITOR_ENV: &str = "Set EDITOR environment variable to your preferred editor";
+pub const SUGGESTION_SET_EDITOR_ENV: &str =
+    "Set EDITOR environment variable to your preferred editor";
