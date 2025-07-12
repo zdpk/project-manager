@@ -35,7 +35,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          allowed_tools: "Bash(cargo build),Bash(cargo test),Bash(cargo fmt),Bash(cargo clippy),Bash(cargo doc),LS,Read,Edit,Write,Glob,Grep,MultiEdit"
+          allowed_tools: "Bash,LS,Read,Edit,Write,Glob,Grep,MultiEdit"
           custom_instructions: |
             You have tools for Rust project management:
             - cargo build: Compile the project

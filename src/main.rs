@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
+use schemars::JsonSchema;
 use std::path::PathBuf;
 use uuid::Uuid;
 
@@ -321,7 +322,8 @@ enum TemplateCommands {
     },
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+#[schemars(title = "Project", description = "A managed project")]
 pub struct Project {
     pub id: Uuid,
     pub name: String,
@@ -333,7 +335,8 @@ pub struct Project {
     pub git_updated_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, JsonSchema)]
+#[schemars(title = "Machine Metadata", description = "Machine-specific project metadata")]
 pub struct MachineMetadata {
     pub last_accessed: std::collections::HashMap<Uuid, DateTime<Utc>>,
     pub access_counts: std::collections::HashMap<Uuid, u32>,
