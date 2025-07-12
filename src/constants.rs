@@ -4,8 +4,9 @@ pub const CONFIG_FILENAME: &str = "config.yml";
 pub const CONFIG_SCHEMA_PATH: &str = "schemas/config.schema.json";
 pub const CONFIG_VERSION: &str = "1.0";
 
-// Legacy support
-pub const LEGACY_CONFIG_FILENAME: &str = "config.json";
+// Config paths (XDG Base Directory Specification)
+pub const CONFIG_DIR_NAME: &str = ".config";
+pub const CONFIG_SUBDIR_NAME: &str = "pm";
 
 // Default values
 pub const DEFAULT_WORKSPACE_DIR: &str = "~/workspace";
