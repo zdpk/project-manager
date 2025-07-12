@@ -325,10 +325,28 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()>
 
     let mut repositories = Vec::new();
     
-    // Walk through directory structure
-    for entry in WalkDir::new(&scan_dir).max_depth(3).into_iter().filter_map(|e| e.ok()) {
+    // Walk through directory structure with smart filtering
+    for entry in WalkDir::new(&scan_dir)
+        .max_depth(3)
+        .into_iter()
+        .filter_entry(|e| {
+            // Skip directories we don't want to traverse into
+            if e.file_type().is_dir() {
+                !should_skip_directory(e.path())
+            } else {
+                true // Always process files
+            }
+        })
+        .filter_map(|e| e.ok()) 
+    {
         if entry.file_type().is_dir() {
             let path = entry.path();
+            
+            // Skip the scan directory itself
+            if path == scan_dir {
+                continue;
+            }
+
             let name = path.file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("unnamed")
@@ -336,20 +354,19 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()>
 
             pb.set_message(format!("Checking: {}", name));
 
-            // Check if it's a Git repository
-            let is_git = Repository::open(path).is_ok();
-            let remote_url = if is_git {
-                get_git_remote_url(path)
-            } else {
-                None
-            };
+            // Only check directories that pass our project root validation
+            if is_project_root(path) {
+                let has_git_dir = path.join(".git").exists();
+                let remote_url = if has_git_dir {
+                    get_git_remote_url(path)
+                } else {
+                    None
+                };
 
-            // Only include directories that are either Git repos or contain interesting content
-            if is_git || contains_project_files(path) {
                 repositories.push(GitRepoInfo {
                     path: path.to_path_buf(),
                     name,
-                    is_git,
+                    is_git: has_git_dir,
                     remote_url,
                 });
             }
@@ -535,10 +552,60 @@ fn get_git_remote_url(path: &Path) -> Option<String> {
     None
 }
 
+fn should_skip_directory(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+        return true; // Skip if we can't get the directory name
+    };
+
+    // Always skip these directories
+    let always_skip = [
+        // Git metadata and version control
+        ".git", ".svn", ".hg", ".bzr",
+        // Dependencies and build artifacts
+        "node_modules", "vendor", "target", "build", "dist", "out",
+        // Caches and temporary files
+        ".cache", ".npm", ".yarn", ".pnpm", "__pycache__", ".pytest_cache",
+        // IDE and editor directories
+        ".vscode", ".idea", ".vs", ".eclipse", ".netbeans",
+        // System and temporary
+        ".DS_Store", "tmp", "temp", ".tmp", ".temp",
+        // Other common excludes
+        "coverage", ".nyc_output", ".next", ".nuxt", ".gradle",
+    ];
+
+    if always_skip.contains(&name) {
+        return true;
+    }
+
+    // Skip any hidden directory (starts with .)
+    if name.starts_with('.') {
+        return true;
+    }
+
+    false
+}
+
+fn is_project_root(path: &Path) -> bool {
+    // Skip if this directory should be excluded
+    if should_skip_directory(path) {
+        return false;
+    }
+
+    // Check if it's a git repository at the root level (has .git subdirectory)
+    let has_git_dir = path.join(".git").exists();
+    
+    // Check for project files
+    let has_project_files = contains_project_files(path);
+    
+    // Consider it a project root if it has either git or project files
+    has_git_dir || has_project_files
+}
+
 fn contains_project_files(path: &Path) -> bool {
     let project_indicators = [
         "package.json", "Cargo.toml", "pyproject.toml", "go.mod", 
-        "pom.xml", "build.gradle", "Makefile", ".project"
+        "pom.xml", "build.gradle", "Makefile", ".project", "composer.json",
+        "requirements.txt", "setup.py", "Gemfile", "mix.exs", "deno.json"
     ];
     
     project_indicators.iter().any(|&file| path.join(file).exists())
