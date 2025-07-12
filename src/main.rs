@@ -41,8 +41,33 @@ enum Commands {
     /// Manage configuration
     #[command(subcommand, alias = "c")]
     Config(ConfigCommands),
-    /// Initialize the pm tool
-    Init {},
+    /// Initialize the pm tool with setup options
+    Init {
+        /// Setup mode: detect (auto-detect workspace), load (GitHub integration), all (both), none (manual). If not specified, interactive selection will be shown.
+        #[arg(long, value_enum)]
+        mode: Option<InitMode>,
+    },
+    
+    /// Scan for Git repositories and add them to PM
+    Scan {
+        /// Directory to scan (defaults to ~/workspace)
+        #[arg(short, long)]
+        directory: Option<PathBuf>,
+        
+        /// Show all repositories found, don't prompt for selection
+        #[arg(long)]
+        show_all: bool,
+    },
+    
+    /// Load (clone) a repository from GitHub
+    Load {
+        /// Repository in format owner/repo
+        repo: String,
+        
+        /// Target directory (defaults to <root_dir>/<owner>/<repo>)
+        #[arg(short, long)]
+        directory: Option<PathBuf>,
+    },
     
     /// Add a new project to manage
     Add {
@@ -314,6 +339,18 @@ pub struct MachineMetadata {
     pub access_counts: std::collections::HashMap<Uuid, u32>,
 }
 
+#[derive(clap::ValueEnum, Clone, Copy)]
+pub enum InitMode {
+    /// Auto-detect existing workspace and repositories
+    Detect,
+    /// Setup GitHub integration for cloning repositories
+    Load,
+    /// Both auto-detection and GitHub integration
+    All,
+    /// Manual setup only
+    None,
+}
+
 
 
 
@@ -335,16 +372,15 @@ async fn main() {
             }
         }
         Commands::Switch { name, no_editor } => {
-            let mut config = match load_config().await {
-                Ok(config) => config,
+            match load_config().await {
+                Ok(mut config) => {
+                    if let Err(e) = project::handle_switch(&mut config, name, *no_editor).await {
+                        handle_error(e, ERROR_PROJECT_NOT_FOUND);
+                    }
+                }
                 Err(e) => {
                     handle_error(e, ERROR_CONFIG_LOAD);
-                    return;
                 }
-            };
-
-            if let Err(e) = project::handle_switch(&mut config, name, *no_editor).await {
-                handle_error(e, ERROR_PROJECT_NOT_FOUND);
             }
         }
         Commands::Project(project_command) => match project_command {
@@ -499,9 +535,19 @@ async fn main() {
                 }
             }
         },
-        Commands::Init {} => {
-            if let Err(e) = init::handle_init().await {
+        Commands::Init { mode } => {
+            if let Err(e) = init::handle_init(mode.as_ref()).await {
                 handle_error(e, "Failed to initialize PM");
+            }
+        }
+        Commands::Scan { directory, show_all } => {
+            if let Err(e) = project::handle_scan(directory.as_deref(), *show_all).await {
+                handle_error(e, "Failed to scan for repositories");
+            }
+        }
+        Commands::Load { repo, directory } => {
+            if let Err(e) = project::handle_load(repo, directory.as_deref()).await {
+                handle_error(e, "Failed to load repository");
             }
         }
     }

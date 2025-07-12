@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use chrono::Utc;
 use uuid::Uuid;
 use crate::config::{load_config, save_config, Config};
@@ -10,6 +10,12 @@ use crate::validation::{validate_path, parse_time_duration};
 use crate::Project;
 use anyhow::Result;
 use std::collections::HashSet;
+use walkdir::WalkDir;
+use git2::Repository;
+use inquire::MultiSelect;
+use indicatif::{ProgressBar, ProgressStyle};
+use std::fs;
+use colored::*;
 
 pub async fn handle_add(path: &PathBuf, name: &Option<String>, tags: &[String], description: &Option<String>) -> Result<()> {
     let mut config = load_config().await?;
@@ -72,7 +78,7 @@ pub async fn handle_add(path: &PathBuf, name: &Option<String>, tags: &[String], 
 }
 
 pub async fn handle_list(tags: &[String], tags_any: &[String], recent: &Option<String>, limit: &Option<usize>, detailed: bool) -> Result<()> {
-    let mut config = load_config().await?;
+    let config = load_config().await?;
 
     if config.projects.is_empty() {
         display_no_projects();
@@ -277,4 +283,263 @@ fn get_filtered_project_data(config: &Config, tags: &[String], tags_any: &[Strin
     });
 
     Ok(project_data)
+}
+
+#[derive(Debug, Clone)]
+struct GitRepoInfo {
+    path: PathBuf,
+    name: String,
+    is_git: bool,
+    remote_url: Option<String>,
+}
+
+pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()> {
+    let config = load_config().await?;
+    
+    // Determine scan directory
+    let scan_dir = if let Some(dir) = directory {
+        dir.to_path_buf()
+    } else {
+        // Default to ~/workspace, fallback to home directory
+        let home_dir = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+        let workspace_dir = home_dir.join("workspace");
+        if workspace_dir.exists() {
+            workspace_dir
+        } else {
+            println!("📁 ~/workspace directory not found, using home directory");
+            home_dir
+        }
+    };
+
+    if !scan_dir.exists() {
+        return Err(anyhow::anyhow!("Directory does not exist: {}", scan_dir.display()));
+    }
+
+    println!("🔍 Scanning for Git repositories in: {}", scan_dir.display());
+    
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(ProgressStyle::default_spinner()
+        .template("{spinner:.green} {msg}")
+        .unwrap());
+    pb.set_message("Scanning directories...");
+
+    let mut repositories = Vec::new();
+    
+    // Walk through directory structure
+    for entry in WalkDir::new(&scan_dir).max_depth(3).into_iter().filter_map(|e| e.ok()) {
+        if entry.file_type().is_dir() {
+            let path = entry.path();
+            let name = path.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unnamed")
+                .to_string();
+
+            pb.set_message(format!("Checking: {}", name));
+
+            // Check if it's a Git repository
+            let is_git = Repository::open(path).is_ok();
+            let remote_url = if is_git {
+                get_git_remote_url(path)
+            } else {
+                None
+            };
+
+            // Only include directories that are either Git repos or contain interesting content
+            if is_git || contains_project_files(path) {
+                repositories.push(GitRepoInfo {
+                    path: path.to_path_buf(),
+                    name,
+                    is_git,
+                    remote_url,
+                });
+            }
+        }
+    }
+
+    pb.finish_and_clear();
+
+    if repositories.is_empty() {
+        println!("❌ No repositories found in {}", scan_dir.display());
+        return Ok(());
+    }
+
+    // Filter out already tracked projects
+    let existing_paths: HashSet<PathBuf> = config.projects.values()
+        .map(|p| p.path.clone())
+        .collect();
+
+    let new_repos: Vec<GitRepoInfo> = repositories.into_iter()
+        .filter(|repo| !existing_paths.contains(&repo.path))
+        .collect();
+
+    if new_repos.is_empty() {
+        println!("✅ All found repositories are already tracked by PM");
+        return Ok(());
+    }
+
+    println!("📦 Found {} new repositories:", new_repos.len());
+
+    if show_all {
+        // Just display all repositories
+        for repo in &new_repos {
+            println!("  {} {} {}", 
+                if repo.is_git { "🔗" } else { "📁" },
+                repo.name,
+                repo.path.display().to_string().bright_black()
+            );
+            if let Some(url) = &repo.remote_url {
+                println!("    🌐 {}", url.bright_black());
+            }
+        }
+        return Ok(());
+    }
+
+    // Interactive selection
+    let options: Vec<String> = new_repos.iter()
+        .map(|repo| {
+            let prefix = if repo.is_git { "🔗" } else { "📁" };
+            format!("{} {} ({})", prefix, repo.name, repo.path.display())
+        })
+        .collect();
+
+    if options.is_empty() {
+        println!("✅ No new repositories to add");
+        return Ok(());
+    }
+
+    let selection = MultiSelect::new("Select repositories to add to PM:", options)
+        .prompt()?;
+
+    if selection.is_empty() {
+        println!("❌ No repositories selected");
+        return Ok(());
+    }
+
+    // Add selected repositories
+    let mut config = load_config().await?;
+    let mut added_count = 0;
+
+    for selected in selection {
+        // Find the repository by matching the display string
+        if let Some(repo) = new_repos.iter().find(|r| {
+            let expected = format!("{} {} ({})", 
+                if r.is_git { "🔗" } else { "📁" }, 
+                r.name, 
+                r.path.display()
+            );
+            expected == selected
+        }) {
+            let git_updated_at = if repo.is_git {
+                get_last_git_commit_time(&repo.path).ok().flatten()
+            } else {
+                None
+            };
+
+            let project = Project {
+                id: Uuid::new_v4(),
+                name: repo.name.clone(),
+                path: repo.path.clone(),
+                tags: vec!["scanned".to_string()],
+                description: repo.remote_url.clone(),
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                git_updated_at,
+            };
+
+            config.add_project(project);
+            added_count += 1;
+            println!("✅ Added: {}", repo.name);
+        }
+    }
+
+    save_config(&config).await?;
+    println!("🎉 Successfully added {} repositories to PM", added_count);
+
+    Ok(())
+}
+
+pub async fn handle_load(repo: &str, directory: Option<&Path>) -> Result<()> {
+    // Parse owner/repo format
+    let parts: Vec<&str> = repo.split('/').collect();
+    if parts.len() != 2 {
+        return Err(anyhow::anyhow!("Repository format should be 'owner/repo'"));
+    }
+
+    let owner = parts[0];
+    let repo_name = parts[1];
+
+    let config = load_config().await?;
+
+    // Determine target directory
+    let target_dir = if let Some(dir) = directory {
+        dir.to_path_buf()
+    } else {
+        // Default: <root_dir>/<owner>/<repo>
+        config.projects_root_dir.join(owner).join(repo_name)
+    };
+
+    if target_dir.exists() {
+        return Err(anyhow::anyhow!("Directory already exists: {}", target_dir.display()));
+    }
+
+    // Create parent directories if needed
+    if let Some(parent) = target_dir.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let clone_url = format!("https://github.com/{}/{}.git", owner, repo_name);
+    println!("📥 Cloning {} to {}", clone_url, target_dir.display());
+
+    // Clone the repository
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(ProgressStyle::default_spinner()
+        .template("{spinner:.green} {msg}")
+        .unwrap());
+    pb.set_message("Cloning repository...");
+
+    let _repo = Repository::clone(&clone_url, &target_dir)
+        .map_err(|e| anyhow::anyhow!("Failed to clone repository: {}", e))?;
+
+    pb.finish_and_clear();
+
+    // Add to PM
+    let git_updated_at = get_last_git_commit_time(&target_dir).ok().flatten();
+
+    let project = Project {
+        id: Uuid::new_v4(),
+        name: repo_name.to_string(),
+        path: target_dir.clone(),
+        tags: vec!["github".to_string()],
+        description: Some(format!("Cloned from {}", clone_url)),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+        git_updated_at,
+    };
+
+    let mut config = load_config().await?;
+    config.add_project(project);
+    save_config(&config).await?;
+
+    println!("✅ Successfully cloned and added {} to PM", repo_name);
+    println!("📁 Location: {}", target_dir.display());
+
+    Ok(())
+}
+
+fn get_git_remote_url(path: &Path) -> Option<String> {
+    if let Ok(repo) = Repository::open(path) {
+        if let Ok(remote) = repo.find_remote("origin") {
+            return remote.url().map(|s| s.to_string());
+        }
+    }
+    None
+}
+
+fn contains_project_files(path: &Path) -> bool {
+    let project_indicators = [
+        "package.json", "Cargo.toml", "pyproject.toml", "go.mod", 
+        "pom.xml", "build.gradle", "Makefile", ".project"
+    ];
+    
+    project_indicators.iter().any(|&file| path.join(file).exists())
 }
