@@ -597,9 +597,75 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<usi
     Ok(added_count)
 }
 
+/// Check if GitHub CLI is installed and authenticated
+async fn check_gh_status() -> (bool, bool) {
+    use std::process::Command;
+    
+    // Check if gh is installed
+    let gh_installed = Command::new("gh")
+        .args(&["--version"])
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+    
+    if !gh_installed {
+        return (false, false);
+    }
+    
+    // Check if gh is authenticated
+    let gh_authenticated = Command::new("gh")
+        .args(&["auth", "status"])
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+    
+    (gh_installed, gh_authenticated)
+}
+
+/// Get GitHub token from gh CLI if available
+async fn get_gh_token() -> Option<String> {
+    use std::process::Command;
+    
+    let output = Command::new("gh")
+        .args(&["auth", "token"])
+        .output()
+        .ok()?;
+    
+    if output.status.success() {
+        String::from_utf8(output.stdout)
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    } else {
+        None
+    }
+}
+
 /// Fetch user repositories from GitHub
 pub async fn fetch_github_repositories(username: &str) -> Result<Vec<GitHubRepo>> {
-    let octocrab = Octocrab::builder().build()?;
+    let (gh_installed, gh_authenticated) = check_gh_status().await;
+    
+    let octocrab = if gh_installed && gh_authenticated {
+        if let Some(token) = get_gh_token().await {
+            println!("🔐 Using GitHub CLI authentication (can access private repos)");
+            Octocrab::builder()
+                .personal_token(token)
+                .build()?
+        } else {
+            println!("⚠️  GitHub CLI authenticated but token unavailable, using public API");
+            println!("💡 Try 'gh auth refresh' if you experience issues");
+            Octocrab::builder().build()?
+        }
+    } else if gh_installed && !gh_authenticated {
+        println!("🌐 GitHub CLI installed but not authenticated (public repos only)");
+        println!("💡 Run 'gh auth login' to authenticate and access private repos");
+        Octocrab::builder().build()?
+    } else {
+        println!("🌐 Using unauthenticated GitHub API (public repos only)");
+        println!("💡 Install GitHub CLI and run 'gh auth login' to access private repos");
+        println!("   Installation: https://cli.github.com/");
+        Octocrab::builder().build()?
+    };
     
     println!("🔍 Fetching repositories for user: {}", username);
     
