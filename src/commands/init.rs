@@ -131,10 +131,10 @@ pub async fn handle_init() -> Result<()> {
 
     // Show next steps for using PM
     println!("\n🎯 Next steps:");
-    println!("  pm add <path>     # Add your first project");
-    println!("  pm scan           # Scan for existing repositories");
-    println!("  pm load <owner>/<repo> # Clone from GitHub");
-    println!("  pm browse         # Browse and select GitHub repositories");
+    println!("  pm project add <path>          # Add your first project");
+    println!("  pm github scan                 # Scan for existing repositories");
+    println!("  pm github clone <owner>/<repo> # Clone specific repository");
+    println!("  pm github clone                # Browse and select repositories");
     
     println!("\n📖 Use 'pm --help' to see all available commands");
 

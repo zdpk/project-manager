@@ -220,45 +220,25 @@ pm tag show # If run inside a project directory
 
 ## GitHub Integration
 
-### `pm browse`
+### `pm github` (alias: `pm gh`)
 
-Browse and select repositories from GitHub with interactive multi-select interface.
+Contains subcommands for GitHub integration. All GitHub-related functionality is grouped under this command.
 
-**Usage:**
+#### `pm github clone` (alias: `pm gh clone`)
 
-```bash
-pm browse                        # Browse your repositories  
-pm browse --username other-user  # Browse another user's repositories
-```
-
-**Options:**
-
-*   `-u, --username <USERNAME>`: GitHub username to browse (defaults to configured username)
-
-**Behavior:**
-
-*   Connects to GitHub API (uses GitHub CLI authentication if available)
-*   Displays all repositories (public and private if authenticated)
-*   Provides multi-select interface with repository details
-*   Shows privacy status (🔒 private, 🌐 public) and fork status (🍴)
-*   Displays programming language and description
-*   Clones selected repositories with progress bars
-*   Adds cloned repositories to PM management
-
-### `pm load <REPO>`
-
-Clone a specific repository from GitHub.
+Clone repositories from GitHub with interactive browse or direct clone functionality.
 
 **Usage:**
 
 ```bash
-pm load microsoft/vscode                # Clone to default location
-pm load owner/repo --directory ~/custom # Clone to custom directory
+pm github clone                               # Interactive browse your repositories
+pm gh clone microsoft/vscode                  # Clone specific repository
+pm gh clone owner/repo --directory ~/custom   # Clone to custom directory
 ```
 
 **Arguments:**
 
-*   `<REPO>`: Repository in `owner/repo` format
+*   `[REPO]`: Repository in `owner/repo` format (optional for interactive browse)
 
 **Options:**
 
@@ -266,21 +246,32 @@ pm load owner/repo --directory ~/custom # Clone to custom directory
 
 **Behavior:**
 
-*   Clones repository from GitHub
+**Interactive Mode (no arguments):**
+*   Requires GitHub CLI authentication (`gh auth login`)
+*   Displays all your repositories (public and private)
+*   Provides multi-select interface with repository details
+*   Shows privacy status (🔒 private, 🌐 public) and fork status (🍴)
+*   Displays programming language and description
+*   Clones selected repositories with progress bars
+*   Adds cloned repositories to PM management
+
+**Direct Clone Mode (with repository argument):**
+*   Requires GitHub CLI authentication (`gh auth login`)
+*   Clones the specified repository from GitHub
 *   Creates parent directories if needed
 *   Adds cloned project to PM management
 *   Assigns 'github' tag automatically
 
-### `pm scan`
+#### `pm github scan` (alias: `pm gh scan`)
 
 Scan directories for existing Git repositories and add them to PM.
 
 **Usage:**
 
 ```bash
-pm scan                    # Scan default workspace (~/workspace)
-pm scan ~/Development      # Scan specific directory
-pm scan --show-all         # Show all found repositories without selection
+pm github scan                    # Scan default workspace (~/workspace)
+pm gh scan ~/Development          # Scan specific directory
+pm gh scan --show-all            # Show all found repositories without selection
 ```
 
 **Options:**
