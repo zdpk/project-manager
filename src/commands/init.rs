@@ -313,7 +313,10 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
         }
     }
 
-    println!("\n📖 Use 'pm --help' to see all available commands");
+    // Only show help message if user didn't cancel repository selection
+    if !repo_selection_cancelled {
+        println!("\n📖 Use 'pm --help' to see all available commands");
+    }
 
     Ok(())
 }
