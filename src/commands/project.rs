@@ -44,7 +44,7 @@ pub async fn handle_add(
     let resolved_path = if path.is_absolute() {
         path.clone()
     } else {
-        config.projects_root_dir.join(path)
+        std::env::current_dir()?.join(path)
     };
 
     // Check if directory exists
@@ -953,8 +953,8 @@ async fn load_repository_internal(repo: &str, directory: Option<&Path>, show_pro
     let target_dir = if let Some(dir) = directory {
         dir.to_path_buf()
     } else {
-        // Default: <root_dir>/<owner>/<repo>
-        config.projects_root_dir.join(&owner).join(&repo_name)
+        // Default: <current_dir>/<owner>/<repo>
+        std::env::current_dir()?.join(&owner).join(&repo_name)
     };
 
     if target_dir.exists() {

@@ -36,19 +36,6 @@ pub async fn handle_init() -> Result<()> {
         PathBuf::from(shellexpand::tilde(&config_input).to_string())
     };
 
-    // Step 2: Projects directory configuration
-    let projects_root_dir = {
-        let default_workspace = dirs::home_dir()
-            .map(|home| home.join("workspace"))
-            .unwrap_or_else(|| PathBuf::from("~/workspace"));
-
-        let dir_input = handle_inquire_error(Text::new("Projects root directory:")
-            .with_default(&default_workspace.to_string_lossy())
-            .with_help_message("Where your projects will be stored (press Enter for default)")
-            .prompt())?;
-
-        PathBuf::from(shellexpand::tilde(&dir_input).to_string())
-    };
 
     // Step 3: Editor configuration
     let editor_options = vec![
@@ -85,18 +72,6 @@ pub async fn handle_init() -> Result<()> {
         .with_default(true)
         .prompt())?;
 
-    // Create the projects root directory if it doesn't exist
-    if !projects_root_dir.exists() {
-        println!(
-            "\n📁 Creating projects root directory: {}",
-            projects_root_dir.display()
-        );
-        if let Err(e) = std::fs::create_dir_all(&projects_root_dir) {
-            display_error("Failed to create directory", &e.to_string());
-            println!("   Path: {}", projects_root_dir.display());
-            return Err(PmError::DirectoryCreationFailed.into());
-        }
-    }
 
     // Create the config directory if it doesn't exist
     if !config_dir_path.exists() {
@@ -115,7 +90,6 @@ pub async fn handle_init() -> Result<()> {
     let config = Config {
         version: crate::constants::CONFIG_VERSION.to_string(),
         config_path: config_dir_path.clone(),
-        projects_root_dir: projects_root_dir.clone(),
         editor,
         settings: ConfigSettings {
             auto_open_editor,
@@ -127,14 +101,14 @@ pub async fn handle_init() -> Result<()> {
     };
 
     save_config(&config).await?;
-    display_init_success(&config_dir_path, &projects_root_dir, &config_path);
+    display_init_success(&config_dir_path, &config_path);
 
     // Show next steps for using PM
     println!("\n🎯 Next steps:");
-    println!("  pm project add <path>          # Add your first project");
-    println!("  pm github scan                 # Scan for existing repositories");
-    println!("  pm github clone <owner>/<repo> # Clone specific repository");
-    println!("  pm github clone                # Browse and select repositories");
+    println!("  pm add <path>          # Add your first project");
+    println!("  pm scan                # Scan for existing repositories");
+    println!("  pm clone <owner>/<repo> # Clone specific repository");
+    println!("  pm clone               # Browse and select repositories");
     
     println!("\n📖 Use 'pm --help' to see all available commands");
 
