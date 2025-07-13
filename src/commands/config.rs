@@ -1,4 +1,5 @@
 use crate::config::{get_config_path, load_config, save_config, Config};
+use crate::error::handle_inquire_error;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use colored::*;
@@ -689,12 +690,12 @@ pub async fn handle_backup_restore(name: &str) -> Result<()> {
         serde_yaml::from_str(&backup_content)?;
 
     // Confirm restore
-    let confirm = Confirm::new(&format!(
+    let confirm = handle_inquire_error(Confirm::new(&format!(
         "Restore configuration from backup '{}'? This will overwrite your current config.",
         name
     ))
     .with_default(false)
-    .prompt()?;
+    .prompt())?;
 
     if !confirm {
         println!("Restore cancelled.");
@@ -797,9 +798,9 @@ pub async fn handle_backup_delete(name: &str) -> Result<()> {
         return Err(anyhow::anyhow!("Backup '{}' not found", name));
     }
 
-    let confirm = Confirm::new(&format!("Delete backup '{}'? This cannot be undone.", name))
+    let confirm = handle_inquire_error(Confirm::new(&format!("Delete backup '{}'? This cannot be undone.", name))
         .with_default(false)
-        .prompt()?;
+        .prompt())?;
 
     if !confirm {
         println!("Delete cancelled.");
@@ -905,12 +906,12 @@ pub async fn handle_template_apply(name: &str) -> Result<()> {
     let template: ConfigTemplate = serde_yaml::from_str(&template_content)?;
 
     // Confirm application
-    let confirm = Confirm::new(&format!(
+    let confirm = handle_inquire_error(Confirm::new(&format!(
         "Apply template '{}'? This will overwrite your current config.",
         name
     ))
     .with_default(false)
-    .prompt()?;
+    .prompt())?;
 
     if !confirm {
         println!("Template application cancelled.");
@@ -950,9 +951,9 @@ pub async fn handle_template_save(name: &str, description: Option<&str>) -> Resu
     let template_file = templates_dir.join(format!("{}.yml", name));
 
     if template_file.exists() {
-        let confirm = Confirm::new(&format!("Template '{}' already exists. Overwrite?", name))
+        let confirm = handle_inquire_error(Confirm::new(&format!("Template '{}' already exists. Overwrite?", name))
             .with_default(false)
-            .prompt()?;
+            .prompt())?;
 
         if !confirm {
             println!("Template save cancelled.");
@@ -994,12 +995,12 @@ pub async fn handle_template_delete(name: &str) -> Result<()> {
         return Err(anyhow::anyhow!("Template '{}' not found", name));
     }
 
-    let confirm = Confirm::new(&format!(
+    let confirm = handle_inquire_error(Confirm::new(&format!(
         "Delete template '{}'? This cannot be undone.",
         name
     ))
     .with_default(false)
-    .prompt()?;
+    .prompt())?;
 
     if !confirm {
         println!("Delete cancelled.");
@@ -1041,12 +1042,12 @@ async fn apply_builtin_template(name: &str) -> Result<()> {
     };
 
     // Confirm application
-    let confirm = Confirm::new(&format!(
+    let confirm = handle_inquire_error(Confirm::new(&format!(
         "Apply built-in template '{}'? This will overwrite your current config.",
         name
     ))
     .with_default(false)
-    .prompt()?;
+    .prompt())?;
 
     if !confirm {
         println!("Template application cancelled.");
@@ -1141,9 +1142,9 @@ pub async fn handle_setup(quick: bool) -> Result<()> {
     let mut config = Config::default();
 
     // GitHub username
-    let github_username = Text::new("GitHub username:")
+    let github_username = handle_inquire_error(Text::new("GitHub username:")
         .with_default(&config.github_username)
-        .prompt()?;
+        .prompt())?;
     config.github_username = github_username;
 
     // Projects root directory
@@ -1151,43 +1152,43 @@ pub async fn handle_setup(quick: bool) -> Result<()> {
         .unwrap_or_else(|| PathBuf::from("."))
         .join("projects");
 
-    let projects_root = Text::new("Projects root directory:")
+    let projects_root = handle_inquire_error(Text::new("Projects root directory:")
         .with_default(&default_root.display().to_string())
-        .prompt()?;
+        .prompt())?;
     config.projects_root_dir = PathBuf::from(shellexpand::tilde(&projects_root).into_owned());
 
     // Editor
     let detected_editor = detect_editor();
-    let editor = Text::new("Preferred editor:")
+    let editor = handle_inquire_error(Text::new("Preferred editor:")
         .with_default(&detected_editor)
-        .prompt()?;
+        .prompt())?;
     config.editor = editor;
 
     // Auto open editor
-    let auto_open = Confirm::new("Automatically open editor when switching projects?")
+    let auto_open = handle_inquire_error(Confirm::new("Automatically open editor when switching projects?")
         .with_default(true)
-        .prompt()?;
+        .prompt())?;
     config.settings.auto_open_editor = auto_open;
 
     // Show git status
-    let show_git = Confirm::new("Show git status in project lists?")
+    let show_git = handle_inquire_error(Confirm::new("Show git status in project lists?")
         .with_default(true)
-        .prompt()?;
+        .prompt())?;
     config.settings.show_git_status = show_git;
 
     // Recent projects limit
     let recent_limit_options = vec![5, 10, 15, 20, 25, 30];
-    let recent_limit = Select::new("Recent projects limit:", recent_limit_options).prompt()?;
+    let recent_limit = handle_inquire_error(Select::new("Recent projects limit:", recent_limit_options).prompt())?;
     config.settings.recent_projects_limit = recent_limit as u32;
 
     // Create projects directory if it doesn't exist
     if !config.projects_root_dir.exists() {
-        let create_dir = Confirm::new(&format!(
+        let create_dir = handle_inquire_error(Confirm::new(&format!(
             "Projects directory '{}' doesn't exist. Create it?",
             config.projects_root_dir.display()
         ))
         .with_default(true)
-        .prompt()?;
+        .prompt())?;
 
         if create_dir {
             fs::create_dir_all(&config.projects_root_dir)?;
@@ -1296,12 +1297,12 @@ pub async fn handle_import(file: &Path, force: bool) -> Result<()> {
         )))
         .await?;
 
-        let confirm = Confirm::new(&format!(
+        let confirm = handle_inquire_error(Confirm::new(&format!(
             "Import configuration from '{}'? This will overwrite your current config.",
             file.display()
         ))
         .with_default(false)
-        .prompt()?;
+        .prompt())?;
 
         if !confirm {
             println!("Import cancelled.");
