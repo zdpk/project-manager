@@ -204,8 +204,4 @@ pub fn display_init_success(
     println!("👤 GitHub username: {}", github_username);
     println!("📁 Projects root: {}", projects_root.display());
     println!("⚙️  Config file: {}", config_path.display());
-    println!("\n🎯 Next steps:");
-    println!("  pm add <path>     # Add your first project");
-    println!("  pm ls             # List projects");
-    println!("  pm s <name>       # Switch to project");
 }

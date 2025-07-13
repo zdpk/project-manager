@@ -140,12 +140,18 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
     display_init_success(&github_username, &projects_root_dir, &config_path);
 
     // Step 4: Execute setup actions based on mode
+    let mut projects_added = 0;
     match selected_mode {
         InitMode::Detect => {
             println!("\n🔍 Auto-detecting existing repositories...");
-            if let Err(e) = project::handle_scan(Some(&projects_root_dir), false).await {
-                display_warning(&format!("Auto-detection failed: {}", e));
-                println!("💡 You can run 'pm scan' later to detect repositories");
+            match project::handle_scan(Some(&projects_root_dir), false).await {
+                Ok(count) => {
+                    projects_added += count;
+                }
+                Err(e) => {
+                    display_warning(&format!("Auto-detection failed: {}", e));
+                    println!("💡 You can run 'pm scan' later to detect repositories");
+                }
             }
         }
         InitMode::Load => {
@@ -167,14 +173,21 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
                 if let Err(e) = project::handle_load(&repo, None).await {
                     display_warning(&format!("Failed to load repository: {}", e));
                     println!("💡 You can try again with: pm load {}", repo);
+                } else {
+                    projects_added += 1;
                 }
             }
         }
         InitMode::All => {
             // First auto-detect
             println!("\n🔍 Auto-detecting existing repositories...");
-            if let Err(e) = project::handle_scan(Some(&projects_root_dir), false).await {
-                display_warning(&format!("Auto-detection failed: {}", e));
+            match project::handle_scan(Some(&projects_root_dir), false).await {
+                Ok(count) => {
+                    projects_added += count;
+                }
+                Err(e) => {
+                    display_warning(&format!("Auto-detection failed: {}", e));
+                }
             }
 
             // Then offer GitHub integration
@@ -193,15 +206,36 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
                 if let Err(e) = project::handle_load(&repo, None).await {
                     display_warning(&format!("Failed to load repository: {}", e));
                     println!("💡 You can try again with: pm load {}", repo);
+                } else {
+                    projects_added += 1;
                 }
             }
         }
         InitMode::None => {
             println!("\n✅ Manual setup complete!");
-            println!("💡 Next steps:");
-            println!("   - Add projects: pm add <path>");
-            println!("   - Scan for repos: pm scan");
-            println!("   - Clone from GitHub: pm load owner/repo");
+        }
+    }
+
+    // Show appropriate next steps based on what was accomplished
+    if projects_added > 0 {
+        println!("\n🎯 Next steps:");
+        println!("  pm ls             # List your projects");
+        println!("  pm s <name>       # Switch to project");
+        println!("  pm add <path>     # Add more projects");
+    } else {
+        match selected_mode {
+            InitMode::None => {
+                println!("\n🎯 Next steps:");
+                println!("  pm add <path>     # Add your first project");
+                println!("  pm scan           # Scan for existing repositories");
+                println!("  pm load owner/repo # Clone from GitHub");
+            }
+            _ => {
+                println!("\n🎯 Next steps:");
+                println!("  pm add <path>     # Add your first project");
+                println!("  pm scan           # Try scanning again");
+                println!("  pm load owner/repo # Clone from GitHub");
+            }
         }
     }
 

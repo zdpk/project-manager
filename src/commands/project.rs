@@ -390,7 +390,7 @@ struct GitRepoInfo {
     remote_url: Option<String>,
 }
 
-pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()> {
+pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<usize> {
     let config = load_config().await?;
 
     // Determine scan directory
@@ -484,7 +484,7 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()>
 
     if repositories.is_empty() {
         println!("❌ No repositories found in {}", scan_dir.display());
-        return Ok(());
+        return Ok(0);
     }
 
     // Filter out already tracked projects
@@ -498,7 +498,7 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()>
 
     if new_repos.is_empty() {
         println!("✅ All found repositories are already tracked by PM");
-        return Ok(());
+        return Ok(0);
     }
 
     println!("📦 Found {} new repositories:", new_repos.len());
@@ -516,7 +516,7 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()>
                 println!("    🌐 {}", url.bright_black());
             }
         }
-        return Ok(());
+        return Ok(0);
     }
 
     // Interactive selection
@@ -530,14 +530,14 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()>
 
     if options.is_empty() {
         println!("✅ No new repositories to add");
-        return Ok(());
+        return Ok(0);
     }
 
     let selection = handle_inquire_error(MultiSelect::new("Select repositories to add to PM:", options).prompt())?;
 
     if selection.is_empty() {
         println!("❌ No repositories selected");
-        return Ok(());
+        return Ok(0);
     }
 
     // Add selected repositories
@@ -581,7 +581,7 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()>
     save_config(&config).await?;
     println!("🎉 Successfully added {} repositories to PM", added_count);
 
-    Ok(())
+    Ok(added_count)
 }
 
 pub async fn handle_load(repo: &str, directory: Option<&Path>) -> Result<()> {
