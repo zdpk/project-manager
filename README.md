@@ -164,45 +164,47 @@ pm scan --show-all                           # Show all found repositories
 
 ### Interactive Tag Selection
 
-When adding projects, PM provides an intelligent tag selection interface with real-time search and creation capabilities:
+When adding projects, PM provides a streamlined tag selection interface:
 
 ```
-🏷️  Select tags for project: my-awesome-project
+🏷️  Select tags:
 
-> _____ (Type to search or create new tag)
+> _____ (Type to search tags)
 [ ] rust (15 projects)
 [ ] frontend (12 projects) 
 [ ] backend (18 projects)
 [ ] api (8 projects)
 [ ] microservice (5 projects)
 
-✨ Navigation: ↑↓ move • Space select • Enter confirm • Type search
+Type to search • Space to select • Enter to confirm
 ```
 
 **Key Features:**
-- **🔍 Real-time search**: Type to filter existing tags instantly
-- **📊 Smart suggestions**: Popular tags shown with usage counts  
-- **✨ Create new tags**: Enter new tag names to create them on-the-fly
-- **🎯 Multi-select**: Choose multiple tags with space, confirm with enter
-- **⚡ Fuzzy matching**: Find tags even with partial/misspelled input
+- **🔍 Real-time filtering**: Type to search existing tags instantly
+- **📊 Usage insights**: See tag popularity with project counts  
+- **⚡ Direct selection**: No extra confirmation steps
+- **🎯 Multi-select**: Choose multiple tags with space
+- **✨ Easy creation**: Fallback to text input for new tags
 
 **Example Workflow:**
 ```bash
 $ pm add ./my-rust-api
 
-🏷️  Select tags for project: my-rust-api
+🏷️  Select tags:
 
-> backend_____ (User types "backend")
+User types "back" → filters to backend:
+> back___
 [x] backend (18 projects)
-[ ] ✨ Create new tag: "backend" 
 
-User selects backend and types "api":
-> api_____
+User types space to select, then continues:
 [x] backend (18 projects)  
 [x] api (8 projects)
 
+User presses Enter to confirm:
 ✅ Added project 'my-rust-api' with tags: backend, api
 ```
+
+**No existing tags?** Just press Enter for no tags, or add new ones via text input.
 
 ### Tag Management
 

@@ -113,46 +113,49 @@ pm add . --description "My awesome project"    # Add with description
 
 **Interactive Tag Selection:**
 
-For single operations, PM provides an intelligent tag selection interface:
+For single operations, PM provides a streamlined tag selection interface:
 
 ```
-🏷️  Select tags for project: my-awesome-project
+🏷️  Select tags:
 
-> _____ (Type to search or create new tag)
+> _____ (Type to search tags)
 [ ] rust (15 projects)
 [ ] frontend (12 projects) 
 [ ] backend (18 projects)
 [ ] api (8 projects)
 [ ] microservice (5 projects)
 
-✨ Navigation: ↑↓ move • Space select • Enter confirm • Type search
+Type to search • Space to select • Enter to confirm
 ```
 
 **Tag Selection Features:**
-- **Real-time Filtering**: Type to filter existing tags instantly
-- **Smart Ranking**: Tags sorted by relevance and usage frequency
-- **New Tag Creation**: Type new names to create custom tags
-- **Usage Statistics**: See how many projects use each tag
-- **Fuzzy Matching**: Find tags with partial or misspelled input
-- **Multi-select**: Choose multiple tags with space, confirm with enter
+- **Instant access**: No confirmation dialogs, direct tag selection
+- **Real-time filtering**: Type to search existing tags instantly
+- **Usage statistics**: See project counts for informed decisions
+- **Multi-select**: Choose multiple tags with space key
+- **Simple workflow**: Enter confirms selection, no extra steps
+- **New tag fallback**: Text input when no existing tags selected
 
 **Example Tag Selection Workflow:**
 
 ```bash
 $ pm add ./my-rust-api
 
-🏷️  Select tags for project: my-rust-api
+🏷️  Select tags:
 
-> backend_____ (User types "backend")
+User types "back" to filter:
+> back___
 [x] backend (18 projects)
-[ ] ✨ Create new tag: "backend" 
 
-User presses space to select backend, then types "api":
-> api_____
+User selects with space, interface shows selection:
+[x] backend (18 projects)  
+[ ] api (8 projects)
+
+User continues typing "api" then selects:
 [x] backend (18 projects)  
 [x] api (8 projects)
 
-User presses enter to confirm:
+User presses Enter to confirm:
 ✅ Added project 'my-rust-api' with tags: backend, api
    Path: /Users/you/projects/my-rust-api
 ```
