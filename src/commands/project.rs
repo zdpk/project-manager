@@ -246,53 +246,106 @@ async fn select_tags_interactive(config: &Config) -> Result<Vec<String>> {
     let mut sorted_tags: Vec<(String, usize)> = tag_counts.into_iter().collect();
     sorted_tags.sort_by(|a, b| b.1.cmp(&a.1));
 
-    // Create options list for MultiSelect
-    let mut options = Vec::new();
-    for (tag, count) in &sorted_tags {
-        options.push(format!("{} ({} projects)", tag, count));
-    }
-
-    // Always show the tag selection interface, even if no existing tags
-    let help_message = if options.is_empty() {
-        "No existing tags • Enter: no tags • Type new tags and Space to create"
-    } else {
-        "Type to search • Space to select • Enter to confirm"
-    };
-
-    let selections = handle_inquire_error(
-        MultiSelect::new("🏷️  Select tags:", options)
-            .with_help_message(help_message)
+    // Create initial text input for tag search/creation
+    let initial_input = handle_inquire_error(
+        Text::new("🏷️  Tags:")
+            .with_help_message("Type tag name to search/create, space for multiple, Enter to confirm")
+            .with_default("")
             .prompt()
     )?;
 
-    // Extract tag names from selections
-    let mut selected_tags = Vec::new();
-    for selection in selections {
-        let tag_name = selection.split(" (").next().unwrap_or(&selection).to_string();
-        selected_tags.push(tag_name);
-    }
+    // Parse the input
+    let input_tags: Vec<String> = if initial_input.trim().is_empty() {
+        Vec::new()
+    } else {
+        initial_input
+            .split_whitespace()
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty())
+            .collect()
+    };
 
-    // If no existing tags were selected and there are existing tags, ask for new ones
-    if selected_tags.is_empty() {
-        // Allow adding new tags via text input
-        let add_new = handle_inquire_error(
-            Text::new("Create new tags (space-separated, or Enter for no tags):")
-                .with_help_message("e.g., 'rust backend api'")
+    // If no input provided, show MultiSelect for existing tags
+    if input_tags.is_empty() && !sorted_tags.is_empty() {
+        let existing_options: Vec<String> = sorted_tags.iter()
+            .map(|(tag, count)| format!("{} ({} projects)", tag, count))
+            .collect();
+
+        let selections = handle_inquire_error(
+            MultiSelect::new("Select from existing tags:", existing_options)
+                .with_help_message("Space to select • Enter to confirm • Ctrl+C to skip")
                 .prompt()
         )?;
 
-        if !add_new.trim().is_empty() {
-            // Parse space-separated tags
-            for tag in add_new.split_whitespace() {
-                let clean_tag = tag.trim().to_lowercase();
-                if !clean_tag.is_empty() && !selected_tags.contains(&clean_tag) {
-                    selected_tags.push(clean_tag);
-                }
+        let selected_tags: Vec<String> = selections.iter()
+            .map(|selection| {
+                selection.split(" (").next().unwrap_or(selection).to_string()
+            })
+            .collect();
+
+        return Ok(selected_tags);
+    }
+
+    // Validate and process input tags
+    let mut final_tags = Vec::new();
+    let mut new_tags = Vec::new();
+    let mut existing_matches = Vec::new();
+
+    for input_tag in input_tags {
+        // Check if tag exists (fuzzy match)
+        let mut found_match = false;
+        for (existing_tag, count) in &sorted_tags {
+            if existing_tag.to_lowercase() == input_tag 
+                || existing_tag.to_lowercase().starts_with(&input_tag)
+                || input_tag.len() >= 3 && existing_tag.to_lowercase().contains(&input_tag) {
+                
+                existing_matches.push((existing_tag.clone(), *count, input_tag.clone()));
+                found_match = true;
+                break;
             }
+        }
+
+        if !found_match {
+            new_tags.push(input_tag);
         }
     }
 
-    Ok(selected_tags)
+    // Handle existing tag matches
+    if !existing_matches.is_empty() {
+        println!("\n📋 Found matching existing tags:");
+        for (existing_tag, count, input) in existing_matches {
+            println!("  {} → {} ({} projects)", input, existing_tag, count);
+            final_tags.push(existing_tag);
+        }
+    }
+
+    // Handle new tags
+    if !new_tags.is_empty() {
+        println!("\n✨ New tags to create:");
+        for tag in &new_tags {
+            println!("  {}", tag);
+        }
+        
+        let confirm_new = handle_inquire_error(
+            Confirm::new("Create these new tags?")
+                .with_default(true)
+                .prompt()
+        )?;
+
+        if confirm_new {
+            final_tags.extend(new_tags);
+        }
+    }
+
+    // Remove duplicates while preserving order
+    let mut unique_tags = Vec::new();
+    for tag in final_tags {
+        if !unique_tags.contains(&tag) {
+            unique_tags.push(tag);
+        }
+    }
+
+    Ok(unique_tags)
 }
 
 
