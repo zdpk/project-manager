@@ -196,12 +196,12 @@ pub fn display_editor_error(error: &str) {
 }
 
 pub fn display_init_success(
-    github_username: &str,
+    config_dir: &std::path::Path,
     projects_root: &std::path::Path,
-    config_path: &std::path::Path,
+    config_file_path: &std::path::Path,
 ) {
     println!("\n✅ {}", SUCCESS_PM_INITIALIZED);
-    println!("👤 GitHub username: {}", github_username);
+    println!("📂 Config directory: {}", config_dir.display());
     println!("📁 Projects root: {}", projects_root.display());
-    println!("⚙️  Config file: {}", config_path.display());
+    println!("⚙️  Config file: {}", config_file_path.display());
 }
