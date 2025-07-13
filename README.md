@@ -58,11 +58,17 @@ cargo install --path .
 ## Quick Start
 
 ```bash
-# Interactive initialization
+# Interactive initialization - sets up PM configuration
 pm init
 
 # Add a project
 pm add ~/workspace/my-project --tags rust,backend
+
+# Scan for existing repositories
+pm scan
+
+# Browse and clone GitHub repositories
+pm browse
 
 # List all projects
 pm ls
@@ -76,6 +82,45 @@ pm s my-project
 # Switch without opening editor
 pm s my-project --no-editor
 ```
+
+### Initial Setup Example
+
+When you run `pm init`, you'll be guided through an interactive setup:
+
+```bash
+$ pm init
+🚀 Initializing PM...
+
+🔍 Detecting GitHub username from GitHub CLI...
+✅ Detected GitHub username: your-username
+> Use detected GitHub username 'your-username'? Yes
+> Configuration directory: ~/.config/pm
+  Where PM configuration files will be stored (press Enter for default)
+> Projects root directory: ~/workspace  
+  Where your projects will be stored (press Enter for default)
+> Choose your preferred editor: hx (Helix)
+> Automatically open editor when switching to projects? Yes
+> Show git status in project listings? Yes
+
+📂 Creating configuration directory: /Users/you/.config/pm
+📁 Creating projects root directory: /Users/you/workspace
+
+✅ PM initialized successfully
+👤 GitHub username: your-username
+📂 Config directory: /Users/you/.config/pm
+📁 Projects root: /Users/you/workspace
+⚙️ Config file: /Users/you/.config/pm/config.yml
+
+🎯 Next steps:
+  pm add <path>     # Add your first project
+  pm scan           # Scan for existing repositories
+  pm load <owner>/<repo> # Clone from GitHub
+  pm browse         # Browse and select GitHub repositories
+
+📖 Use 'pm --help' to see all available commands
+```
+
+> **Note**: PM automatically detects your GitHub username from GitHub CLI if you're authenticated. If detection fails, you can still enter it manually.
 
 ## Command Reference
 
@@ -107,6 +152,10 @@ pm scan --show-all                      # Show all found repositories
 ### GitHub Integration
 
 ```bash
+# Browse and select repositories interactively
+pm browse                               # Browse your repositories
+pm browse --username other-user         # Browse another user's repositories
+
 # Clone and add repositories
 pm load microsoft/vscode                # Clone to default location
 pm load owner/repo --directory ~/custom # Clone to custom directory
@@ -155,9 +204,10 @@ pm config history --limit 10           # Show configuration history
 
 ## Configuration
 
-PM stores its configuration in `~/.config/pm/config.yml`. The configuration includes:
+PM stores its configuration in a configurable location (default: `~/.config/pm/config.yml`). The configuration includes:
 
-- **GitHub username**: For repository cloning
+- **GitHub username**: For repository cloning and GitHub integration
+- **Configuration path**: Where PM stores its configuration files (configurable during init)
 - **Projects root directory**: Where your projects are located
 - **Editor preference**: Your preferred code editor
 - **Application settings**: Auto-open editor, show git status, etc.
@@ -169,13 +219,26 @@ PM stores its configuration in `~/.config/pm/config.yml`. The configuration incl
 ```yaml
 version: "1.0"
 github_username: "your-username"
-projects_root_dir: "~/workspace"
-editor: "code"
+config_path: "/Users/you/.config/pm"
+projects_root_dir: "/Users/you/workspace"
+editor: "hx"
 settings:
-  auto_open_editor: true
+  auto_open_editor: false
   show_git_status: true
-  recent_projects_limit: 20
+  recent_projects_limit: 10
+projects: {}
+machine_metadata: {}
 ```
+
+### Configuration Setup
+
+During `pm init`, you can customize:
+
+- **Configuration Directory**: Where PM stores its files (default: `~/.config/pm`)
+- **Projects Root Directory**: Where your projects will be stored (default: `~/workspace`)
+- **Editor**: Your preferred code editor (VS Code, Helix, Vim, etc.)
+- **Auto-open Editor**: Whether to automatically open editor when switching projects
+- **Git Status Display**: Whether to show git status information in project listings
 
 ## Advanced Usage
 

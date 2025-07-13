@@ -566,7 +566,7 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<usi
                 r.name,
                 r.path.display()
             );
-            expected == selected
+            expected == *selected
         }) {
             let git_updated_at = if repo.is_git {
                 get_last_git_commit_time(&repo.path).ok().flatten()
@@ -602,22 +602,44 @@ async fn check_gh_status() -> (bool, bool) {
     use std::process::Command;
     
     // Check if gh is installed
-    let gh_installed = Command::new("gh")
-        .args(&["--version"])
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false);
+    let gh_installed = match Command::new("gh").args(&["--version"]).output() {
+        Ok(output) => {
+            if output.status.success() {
+                if let Ok(version) = String::from_utf8(output.stdout) {
+                    println!("🔧 GitHub CLI version: {}", version.trim());
+                }
+                true
+            } else {
+                false
+            }
+        }
+        Err(_) => {
+            println!("❌ GitHub CLI not found in PATH");
+            false
+        }
+    };
     
     if !gh_installed {
         return (false, false);
     }
     
     // Check if gh is authenticated
-    let gh_authenticated = Command::new("gh")
-        .args(&["auth", "status"])
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false);
+    let gh_authenticated = match Command::new("gh").args(&["auth", "status"]).output() {
+        Ok(output) => {
+            if output.status.success() {
+                if let Ok(status) = String::from_utf8(output.stdout) {
+                    println!("🔑 GitHub authentication status: {}", status.trim());
+                }
+                true
+            } else {
+                if let Ok(error) = String::from_utf8(output.stderr) {
+                    println!("🔓 GitHub CLI not authenticated: {}", error.trim());
+                }
+                false
+            }
+        }
+        Err(_) => false,
+    };
     
     (gh_installed, gh_authenticated)
 }
@@ -641,9 +663,69 @@ async fn get_gh_token() -> Option<String> {
     }
 }
 
+/// Get GitHub username from gh CLI if available
+pub async fn get_gh_username() -> Option<String> {
+    use std::process::Command;
+    
+    let output = Command::new("gh")
+        .args(&["api", "user", "--jq", ".login"])
+        .output()
+        .ok()?;
+    
+    if output.status.success() {
+        String::from_utf8(output.stdout)
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    } else {
+        None
+    }
+}
+
+/// Ensure GitHub CLI is installed and authenticated, return current username
+pub async fn ensure_github_cli() -> Result<String> {
+    use std::process::Command;
+    
+    // Check if gh is installed
+    let gh_installed = Command::new("gh")
+        .args(&["--version"])
+        .output()
+        .is_ok();
+    
+    if !gh_installed {
+        return Err(anyhow::anyhow!(
+            "❌ GitHub CLI is required for this feature\n\n\
+            Requirements:\n\
+            • Install GitHub CLI: https://cli.github.com/\n\
+            • Authenticate: gh auth login\n\n\
+            Current status:\n\
+            • GitHub CLI: ❌ Not installed\n\
+            • Authentication: ❌ N/A"
+        ));
+    }
+    
+    // Check if gh is authenticated and get username
+    match get_gh_username().await {
+        Some(username) => Ok(username),
+        None => Err(anyhow::anyhow!(
+            "❌ GitHub CLI authentication required\n\n\
+            Requirements:\n\
+            • Authenticate: gh auth login\n\n\
+            Current status:\n\
+            • GitHub CLI: ✅ Installed\n\
+            • Authentication: ❌ Not authenticated"
+        ))
+    }
+}
+
 /// Fetch user repositories from GitHub
 pub async fn fetch_github_repositories(username: &str) -> Result<Vec<GitHubRepo>> {
+    println!("🔍 Checking GitHub CLI status...");
     let (gh_installed, gh_authenticated) = check_gh_status().await;
+    
+    println!("📊 GitHub CLI Status:");
+    println!("   • Installed: {}", if gh_installed { "✅ Yes" } else { "❌ No" });
+    println!("   • Authenticated: {}", if gh_authenticated { "✅ Yes" } else { "❌ No" });
     
     let octocrab = if gh_installed && gh_authenticated {
         if let Some(token) = get_gh_token().await {
@@ -669,14 +751,30 @@ pub async fn fetch_github_repositories(username: &str) -> Result<Vec<GitHubRepo>
     
     println!("🔍 Fetching repositories for user: {}", username);
     
-    let mut page = octocrab
+    let mut page = match octocrab
         .users(username)
         .repos()
         .r#type(RepoType::All)
         .sort(Sort::Updated)
         .per_page(100)
         .send()
-        .await?;
+        .await {
+            Ok(page) => {
+                println!("✅ Successfully connected to GitHub API");
+                page
+            }
+            Err(e) => {
+                println!("❌ Failed to connect to GitHub API: {}", e);
+                if e.to_string().contains("rate limit") {
+                    println!("💡 GitHub API rate limit exceeded. Try again later or authenticate with 'gh auth login'");
+                } else if e.to_string().contains("404") {
+                    println!("💡 User '{}' not found. Please check the username.", username);
+                } else {
+                    println!("💡 Check your internet connection and try again");
+                }
+                return Err(e.into());
+            }
+        };
     
     let mut all_repos = Vec::new();
     
@@ -701,15 +799,39 @@ pub async fn fetch_github_repositories(username: &str) -> Result<Vec<GitHubRepo>
     }
     
     println!("📦 Found {} repositories", all_repos.len());
+    
+    if all_repos.is_empty() {
+        println!("💡 No repositories found for user '{}'", username);
+        println!("   This could mean:");
+        println!("   • The user has no public repositories");
+        println!("   • You need authentication to see private repositories");
+        println!("   • The username might be incorrect");
+    } else {
+        let public_count = all_repos.iter().filter(|r| !r.is_private).count();
+        let private_count = all_repos.len() - public_count;
+        println!("   • {} public repositories", public_count);
+        println!("   • {} private repositories", private_count);
+    }
+    
     Ok(all_repos)
 }
 
 /// Show repository selection interface and clone selected repositories
-pub async fn handle_github_repo_selection(username: &str) -> Result<usize> {
-    let repos = fetch_github_repositories(username).await?;
+pub async fn handle_github_repo_selection(username: Option<&str>) -> Result<usize> {
+    // Use provided username or get current authenticated user
+    let target_username = match username {
+        Some(user) => user.to_string(),
+        None => ensure_github_cli().await?
+    };
+    
+    let repos = fetch_github_repositories(&target_username).await?;
     
     if repos.is_empty() {
-        println!("❌ No repositories found for user: {}", username);
+        println!("❌ No repositories available for selection");
+        println!("💡 Possible solutions:");
+        println!("   • Check if the username '{}' is correct", target_username);
+        println!("   • Run 'gh auth login' to access private repositories");
+        println!("   • Create some repositories on GitHub first");
         return Ok(0);
     }
     
@@ -740,7 +862,17 @@ pub async fn handle_github_repo_selection(username: &str) -> Result<usize> {
     let _config = load_config().await?;
     let mut cloned_count = 0;
     
-    for selected in selection {
+    // Create progress bar for cloning repositories
+    let total_repos = selection.len();
+    let pb = ProgressBar::new(total_repos as u64);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("[{pos}/{len}] {msg} {bar:40.cyan/blue} {percent}%")
+            .unwrap()
+            .progress_chars("██▓▒░"),
+    );
+    
+    for (index, selected) in selection.iter().enumerate() {
         // Find the repository by matching the display string
         if let Some(repo) = repos.iter().find(|r| {
             let privacy = if r.is_private { "🔒" } else { "🌐" };
@@ -748,36 +880,57 @@ pub async fn handle_github_repo_selection(username: &str) -> Result<usize> {
             let lang = r.language.as_deref().unwrap_or("unknown");
             let desc = r.description.as_deref().unwrap_or("No description");
             let expected = format!("{}{} {} ({}) - {}", privacy, fork, r.name, lang, desc);
-            expected == selected
+            expected == *selected
         }) {
-            println!("📥 Cloning {} ...", repo.full_name);
+            pb.set_position(index as u64);
+            pb.set_message(format!("Cloning {}", repo.full_name));
             
-            // Use the existing handle_load function to clone the repository
-            if let Err(e) = handle_load(&repo.full_name, None).await {
-                display_warning(&format!("Failed to clone {}: {}", repo.full_name, e));
-            } else {
-                cloned_count += 1;
-                println!("✅ Cloned: {}", repo.full_name);
+            // Use the silent version for batch operations
+            match handle_load_silent(&repo.full_name, None).await {
+                Ok(_) => {
+                    cloned_count += 1;
+                }
+                Err(e) => {
+                    pb.println(format!("❌ Failed to clone {}: {}", repo.full_name, e));
+                }
             }
         }
     }
     
+    // Complete the progress bar
+    pb.set_position(total_repos as u64);
     if cloned_count > 0 {
-        println!("🎉 Successfully cloned {} repositories", cloned_count);
+        pb.finish_with_message(format!("✅ Successfully cloned {} repositories", cloned_count));
+    } else {
+        pb.finish_with_message("❌ No repositories were cloned");
     }
     
     Ok(cloned_count)
 }
 
-pub async fn handle_load(repo: &str, directory: Option<&Path>) -> Result<()> {
-    // Parse owner/repo format
-    let parts: Vec<&str> = repo.split('/').collect();
-    if parts.len() != 2 {
-        return Err(anyhow::anyhow!("Repository format should be 'owner/repo'"));
-    }
+/// Silent version of handle_load for batch operations (no progress output)
+pub async fn handle_load_silent(repo: &str, directory: Option<&Path>) -> Result<()> {
+    load_repository_internal(repo, directory, false).await
+}
 
-    let owner = parts[0];
-    let repo_name = parts[1];
+pub async fn handle_load(repo: &str, directory: Option<&Path>) -> Result<()> {
+    load_repository_internal(repo, directory, true).await
+}
+
+async fn load_repository_internal(repo: &str, directory: Option<&Path>, show_progress: bool) -> Result<()> {
+    // Parse repository format: support both "repo" and "owner/repo"
+    let (owner, repo_name) = if repo.contains('/') {
+        // owner/repo format
+        let parts: Vec<&str> = repo.split('/').collect();
+        if parts.len() != 2 {
+            return Err(anyhow::anyhow!("Repository format should be 'owner/repo' or 'repo'"));
+        }
+        (parts[0].to_string(), parts[1].to_string())
+    } else {
+        // repo-only format - get current authenticated user
+        let current_user = ensure_github_cli().await?;
+        (current_user, repo.to_string())
+    };
 
     let config = load_config().await?;
 
@@ -786,7 +939,7 @@ pub async fn handle_load(repo: &str, directory: Option<&Path>) -> Result<()> {
         dir.to_path_buf()
     } else {
         // Default: <root_dir>/<owner>/<repo>
-        config.projects_root_dir.join(owner).join(repo_name)
+        config.projects_root_dir.join(&owner).join(&repo_name)
     };
 
     if target_dir.exists() {
@@ -802,31 +955,38 @@ pub async fn handle_load(repo: &str, directory: Option<&Path>) -> Result<()> {
     }
 
     let clone_url = format!("https://github.com/{}/{}.git", owner, repo_name);
-    println!("📥 Cloning {} to {}", clone_url, target_dir.display());
+    
+    if show_progress {
+        println!("📥 Cloning {}/{} to {}", owner, repo_name, target_dir.display());
 
-    // Clone the repository
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg}")
-            .unwrap(),
-    );
-    pb.set_message("Cloning repository...");
+        // Clone the repository with progress spinner
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} {msg}")
+                .unwrap(),
+        );
+        pb.set_message("Cloning repository...");
 
-    let _repo = Repository::clone(&clone_url, &target_dir)
-        .map_err(|e| anyhow::anyhow!("Failed to clone repository: {}", e))?;
+        let _repo = Repository::clone(&clone_url, &target_dir)
+            .map_err(|e| anyhow::anyhow!("Failed to clone repository: {}", e))?;
 
-    pb.finish_and_clear();
+        pb.finish_and_clear();
+    } else {
+        // Silent clone without progress display
+        let _repo = Repository::clone(&clone_url, &target_dir)
+            .map_err(|e| anyhow::anyhow!("Failed to clone repository: {}", e))?;
+    }
 
     // Add to PM
     let git_updated_at = get_last_git_commit_time(&target_dir).ok().flatten();
 
     let project = Project {
         id: Uuid::new_v4(),
-        name: repo_name.to_string(),
+        name: repo_name.clone(),
         path: target_dir.clone(),
         tags: vec!["github".to_string()],
-        description: Some(format!("Cloned from {}", clone_url)),
+        description: Some(format!("Cloned from {}/{}", owner, repo_name)),
         created_at: Utc::now(),
         updated_at: Utc::now(),
         git_updated_at,
@@ -836,8 +996,10 @@ pub async fn handle_load(repo: &str, directory: Option<&Path>) -> Result<()> {
     config.add_project(project);
     save_config(&config).await?;
 
-    println!("✅ Successfully cloned and added {} to PM", repo_name);
-    println!("📁 Location: {}", target_dir.display());
+    if show_progress {
+        println!("✅ Successfully cloned and added {}/{} to PM", owner, repo_name);
+        println!("📁 Location: {}", target_dir.display());
+    }
 
     Ok(())
 }

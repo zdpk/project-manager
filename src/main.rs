@@ -56,12 +56,8 @@ enum Commands {
     /// Manage configuration
     #[command(subcommand, alias = "c")]
     Config(ConfigCommands),
-    /// Initialize the pm tool with setup options
-    Init {
-        /// Setup mode: detect (auto-detect workspace), load (GitHub integration), all (both), none (manual). If not specified, interactive selection will be shown.
-        #[arg(long, value_enum)]
-        mode: Option<InitMode>,
-    },
+    /// Initialize PM with basic configuration
+    Init,
 
     /// Scan for Git repositories and add them to PM
     Scan {
@@ -366,17 +362,6 @@ pub struct MachineMetadata {
     pub access_counts: std::collections::HashMap<Uuid, u32>,
 }
 
-#[derive(clap::ValueEnum, Clone, Copy)]
-pub enum InitMode {
-    /// Auto-detect existing workspace and repositories
-    Detect,
-    /// Setup GitHub integration for cloning repositories
-    Load,
-    /// Both auto-detection and GitHub integration
-    All,
-    /// Manual setup only
-    None,
-}
 
 #[tokio::main]
 async fn main() {
@@ -580,8 +565,8 @@ async fn main() {
                 }
             }
         },
-        Commands::Init { mode } => {
-            if let Err(e) = init::handle_init(mode.as_ref()).await {
+        Commands::Init => {
+            if let Err(e) = init::handle_init().await {
                 handle_error(e, "Failed to initialize PM");
             }
         }
@@ -599,21 +584,7 @@ async fn main() {
             }
         }
         Commands::Browse { username } => {
-            let config = match load_config().await {
-                Ok(config) => config,
-                Err(e) => {
-                    handle_config_error(e);
-                }
-            };
-
-            let target_username = username.as_deref().unwrap_or(&config.github_username);
-            
-            if target_username.is_empty() {
-                display_error("GitHub username not configured", "Run 'pm init' to configure GitHub integration");
-                std::process::exit(1);
-            }
-
-            if let Err(e) = project::handle_github_repo_selection(target_username).await {
+            if let Err(e) = project::handle_github_repo_selection(username.as_deref()).await {
                 // Check if this is a user cancellation (Ctrl-C)
                 if let Some(pm_error) = e.downcast_ref::<PmError>() {
                     if matches!(pm_error, PmError::OperationCancelled) {
@@ -621,7 +592,7 @@ async fn main() {
                         std::process::exit(0);
                     }
                 }
-                handle_config_error(e);
+                handle_error(e, "Failed to browse GitHub repositories");
             }
         }
     }

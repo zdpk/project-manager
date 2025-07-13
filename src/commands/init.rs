@@ -1,34 +1,12 @@
-use crate::commands::project;
 use crate::config::{get_config_path, save_config, Config, ConfigSettings};
 use crate::constants::*;
 use crate::display::*;
 use crate::error::{handle_inquire_error, PmError};
-use crate::InitMode;
 use anyhow::Result;
 use inquire::{Confirm, Select, Text};
 use std::path::PathBuf;
 
-fn interactive_mode_selection() -> Result<InitMode> {
-    let mode_options = vec![
-        "🔍 Auto-detect existing workspace and repositories",
-        "🌐 Setup GitHub integration for cloning repositories",
-        "🚀 Both auto-detection and GitHub integration",
-        "⚙️ Manual setup only",
-    ];
-
-    let selected = handle_inquire_error(Select::new("Choose your setup preference:", mode_options).prompt())?;
-
-    // Map the selected option to the corresponding mode
-    match selected {
-        "🔍 Auto-detect existing workspace and repositories" => Ok(InitMode::Detect),
-        "🌐 Setup GitHub integration for cloning repositories" => Ok(InitMode::Load),
-        "🚀 Both auto-detection and GitHub integration" => Ok(InitMode::All),
-        "⚙️ Manual setup only" => Ok(InitMode::None),
-        _ => Ok(InitMode::Detect), // Fallback
-    }
-}
-
-pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
+pub async fn handle_init() -> Result<()> {
     let config_path = get_config_path()?;
 
     if config_path.exists() {
@@ -44,20 +22,19 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
 
     println!("🚀 Initializing {}...\n", APP_NAME.to_uppercase());
 
-    // Determine the mode to use
-    let selected_mode = match mode {
-        Some(m) => *m, // Use explicitly specified mode
-        None => {
-            // Show interactive selection
-            println!("Select your initialization preference:\n");
-            interactive_mode_selection()?
-        }
-    };
+    // Step 1: Configuration directory setup
+    let config_dir_path = {
+        let default_config_dir = dirs::home_dir()
+            .map(|home| home.join(".config").join("pm"))
+            .unwrap_or_else(|| PathBuf::from("~/.config/pm"));
 
-    // Step 1: GitHub username configuration
-    let github_username = handle_inquire_error(Text::new("GitHub username:")
-        .with_help_message("Used for repository cloning and GitHub integration (required)")
-        .prompt())?;
+        let config_input = handle_inquire_error(Text::new("Configuration directory:")
+            .with_default(&default_config_dir.to_string_lossy())
+            .with_help_message("Where PM configuration files will be stored (press Enter for default)")
+            .prompt())?;
+
+        PathBuf::from(shellexpand::tilde(&config_input).to_string())
+    };
 
     // Step 2: Projects directory configuration
     let projects_root_dir = {
@@ -121,10 +98,23 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
         }
     }
 
+    // Create the config directory if it doesn't exist
+    if !config_dir_path.exists() {
+        println!(
+            "📂 Creating configuration directory: {}",
+            config_dir_path.display()
+        );
+        if let Err(e) = std::fs::create_dir_all(&config_dir_path) {
+            display_error("Failed to create config directory", &e.to_string());
+            println!("   Path: {}", config_dir_path.display());
+            return Err(PmError::DirectoryCreationFailed.into());
+        }
+    }
+
     // Step 5: Create and save configuration
     let config = Config {
         version: crate::constants::CONFIG_VERSION.to_string(),
-        github_username: github_username.clone(),
+        config_path: config_dir_path.clone(),
         projects_root_dir: projects_root_dir.clone(),
         editor,
         settings: ConfigSettings {
@@ -137,186 +127,16 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
     };
 
     save_config(&config).await?;
-    display_init_success(&github_username, &projects_root_dir, &config_path);
+    display_init_success(&config_dir_path, &projects_root_dir, &config_path);
 
-    // Step 4: Execute setup actions based on mode
-    let mut projects_added = 0;
-    let mut scan_failed = false;
-    let mut repo_selection_cancelled = false;
-    match selected_mode {
-        InitMode::Detect => {
-            println!("\n🔍 Auto-detecting existing repositories...");
-            match project::handle_scan(Some(&projects_root_dir), false).await {
-                Ok(count) => {
-                    projects_added += count;
-                }
-                Err(e) => {
-                    scan_failed = true;
-                    display_warning(&format!("Auto-detection failed: {}", e));
-                    println!("💡 You can run 'pm scan' later to detect repositories");
-                }
-            }
-        }
-        InitMode::Load => {
-            println!("\n🌐 GitHub integration ready!");
-            println!("💡 Use 'pm load <owner>/<repo>' to clone and add repositories");
-
-            // Offer repository options
-            let repo_options = vec![
-                "📋 Browse and select from my repositories",
-                "📝 Enter specific repository manually",
-                "⏭️  Skip for now",
-            ];
-
-            let repo_choice = handle_inquire_error(
-                Select::new("How would you like to add repositories?", repo_options)
-                    .prompt()
-            )?;
-
-            match repo_choice {
-                "📋 Browse and select from my repositories" => {
-                    match project::handle_github_repo_selection(&github_username).await {
-                        Ok(count) => {
-                            projects_added += count;
-                        }
-                        Err(e) => {
-                            // Check if this is a user cancellation (Ctrl-C)
-                            if let Some(pm_error) = e.downcast_ref::<PmError>() {
-                                if matches!(pm_error, PmError::OperationCancelled) {
-                                    println!("📭 No repositories selected from GitHub");
-                                    repo_selection_cancelled = true;
-                                    // Don't propagate error - this is expected behavior
-                                } else {
-                                    display_warning(&format!("Failed to fetch repositories: {}", e));
-                                    println!("💡 You can browse repositories later with a custom command");
-                                }
-                            } else {
-                                display_warning(&format!("Failed to fetch repositories: {}", e));
-                                println!("💡 You can browse repositories later with a custom command");
-                            }
-                        }
-                    }
-                }
-                "📝 Enter specific repository manually" => {
-                    let repo = handle_inquire_error(Text::new("Repository (<owner>/<repo> format):")
-                        .with_help_message("e.g., microsoft/vscode or your-username/my-project")
-                        .prompt()
-                    )?;
-
-                    if let Err(e) = project::handle_load(&repo, None).await {
-                        display_warning(&format!("Failed to load repository: {}", e));
-                        println!("💡 You can try again with: pm load {}", repo);
-                    } else {
-                        projects_added += 1;
-                    }
-                }
-                _ => {
-                    // Skip for now
-                }
-            }
-        }
-        InitMode::All => {
-            // First auto-detect
-            println!("\n🔍 Auto-detecting existing repositories...");
-            match project::handle_scan(Some(&projects_root_dir), false).await {
-                Ok(count) => {
-                    projects_added += count;
-                }
-                Err(e) => {
-                    scan_failed = true;
-                    display_warning(&format!("Auto-detection failed: {}", e));
-                }
-            }
-
-            // Then offer GitHub integration
-            println!("\n🌐 GitHub integration ready!");
-            
-            let repo_options = vec![
-                "📋 Browse and select from my repositories",
-                "📝 Enter specific repository manually",
-                "⏭️  Skip for now",
-            ];
-
-            let repo_choice = handle_inquire_error(
-                Select::new("How would you like to add repositories?", repo_options)
-                    .prompt()
-            )?;
-
-            match repo_choice {
-                "📋 Browse and select from my repositories" => {
-                    match project::handle_github_repo_selection(&github_username).await {
-                        Ok(count) => {
-                            projects_added += count;
-                        }
-                        Err(e) => {
-                            // Check if this is a user cancellation (Ctrl-C)
-                            if let Some(pm_error) = e.downcast_ref::<PmError>() {
-                                if matches!(pm_error, PmError::OperationCancelled) {
-                                    println!("📭 No repositories selected from GitHub");
-                                    repo_selection_cancelled = true;
-                                    // Don't propagate error - this is expected behavior
-                                } else {
-                                    display_warning(&format!("Failed to fetch repositories: {}", e));
-                                    println!("💡 You can browse repositories later with a custom command");
-                                }
-                            } else {
-                                display_warning(&format!("Failed to fetch repositories: {}", e));
-                                println!("💡 You can browse repositories later with a custom command");
-                            }
-                        }
-                    }
-                }
-                "📝 Enter specific repository manually" => {
-                    let repo = handle_inquire_error(Text::new("Repository (<owner>/<repo> format):")
-                        .with_help_message("e.g., microsoft/vscode or your-username/my-project")
-                        .prompt()
-                    )?;
-
-                    if let Err(e) = project::handle_load(&repo, None).await {
-                        display_warning(&format!("Failed to load repository: {}", e));
-                        println!("💡 You can try again with: pm load {}", repo);
-                    } else {
-                        projects_added += 1;
-                    }
-                }
-                _ => {
-                    // Skip for now
-                }
-            }
-        }
-        InitMode::None => {
-            println!("\n✅ Manual setup complete!");
-        }
-    }
-
-    // Show appropriate next steps based on what was accomplished
-    if projects_added > 0 {
-        println!("\n🎯 Next steps:");
-        println!("  pm ls             # List your projects");
-        println!("  pm s <name>       # Switch to project");
-        println!("  pm add <path>     # Add more projects");
-    } else if !scan_failed && !repo_selection_cancelled {
-        // Only show next steps if scan didn't fail and user didn't cancel repo selection
-        match selected_mode {
-            InitMode::None => {
-                println!("\n🎯 Next steps:");
-                println!("  pm add <path>     # Add your first project");
-                println!("  pm scan           # Scan for existing repositories");
-                println!("  pm load <owner>/<repo> # Clone from GitHub");
-            }
-            _ => {
-                println!("\n🎯 Next steps:");
-                println!("  pm add <path>     # Add your first project");
-                println!("  pm scan           # Try scanning again");
-                println!("  pm load <owner>/<repo> # Clone from GitHub");
-            }
-        }
-    }
-
-    // Only show help message if user didn't cancel repository selection
-    if !repo_selection_cancelled {
-        println!("\n📖 Use 'pm --help' to see all available commands");
-    }
+    // Show next steps for using PM
+    println!("\n🎯 Next steps:");
+    println!("  pm add <path>     # Add your first project");
+    println!("  pm scan           # Scan for existing repositories");
+    println!("  pm load <owner>/<repo> # Clone from GitHub");
+    println!("  pm browse         # Browse and select GitHub repositories");
+    
+    println!("\n📖 Use 'pm --help' to see all available commands");
 
     Ok(())
 }

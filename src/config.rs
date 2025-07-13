@@ -20,8 +20,11 @@ pub struct Config {
         example = "config_version_example"
     )]
     pub version: String,
-    #[schemars(description = "Your GitHub username", example = "username_example")]
-    pub github_username: String,
+    #[schemars(
+        description = "Directory where PM configuration files are stored",
+        example = "config_path_example"
+    )]
+    pub config_path: PathBuf,
     #[schemars(
         description = "Root directory where your projects are located",
         example = "projects_root_example"
@@ -77,8 +80,8 @@ fn config_version_example() -> &'static str {
     "1.0"
 }
 
-fn username_example() -> &'static str {
-    "octocat"
+fn config_path_example() -> &'static str {
+    "~/.config/pm"
 }
 
 fn projects_root_example() -> &'static str {
@@ -93,7 +96,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             version: CONFIG_VERSION.to_string(),
-            github_username: String::new(),
+            config_path: PathBuf::new(),
             projects_root_dir: PathBuf::new(),
             editor: String::new(), // 빈 문자열로 초기화
             settings: ConfigSettings::default(),
@@ -247,26 +250,10 @@ fn validate_config(config: &Config) -> Result<()> {
     // Full schema validation will be implemented in Phase 2
 
     // Basic validations
-    if config.github_username.is_empty() {
-        return Err(anyhow::anyhow!("GitHub username cannot be empty"));
-    }
-
     if !config.projects_root_dir.exists() {
         return Err(anyhow::anyhow!(
             "Projects root directory does not exist: {}",
             config.projects_root_dir.display()
-        ));
-    }
-
-    // Validate GitHub username format (basic check)
-    if !config
-        .github_username
-        .chars()
-        .all(|c| c.is_alphanumeric() || c == '-')
-    {
-        return Err(anyhow::anyhow!(
-            "Invalid GitHub username format: {}",
-            config.github_username
         ));
     }
 

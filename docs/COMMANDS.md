@@ -11,7 +11,7 @@ This document provides a detailed reference for all commands available in the `p
 
 ### `pm init`
 
-Initializes the `pm` tool by setting up the configuration file (`~/.config/pm/config.json`).
+Initializes PM with interactive configuration setup.
 
 **Usage:**
 
@@ -19,13 +19,74 @@ Initializes the `pm` tool by setting up the configuration file (`~/.config/pm/co
 pm init
 ```
 
+**Interactive Setup:**
+
+PM will guide you through setting up:
+
+1. **GitHub username**: Automatically detected from GitHub CLI, with manual fallback
+2. **Configuration directory**: Where PM stores its configuration files (default: `~/.config/pm`)
+3. **Projects root directory**: Where your projects will be stored (default: `~/workspace`)
+4. **Editor preference**: Your preferred code editor (VS Code, Helix, Vim, etc.)
+5. **Auto-open editor**: Whether to automatically open editor when switching projects
+6. **Git status display**: Whether to show git status information in project listings
+
+**GitHub Username Detection:**
+- PM automatically detects your GitHub username using `gh api user`
+- Requires GitHub CLI (`gh`) to be installed and authenticated
+- Falls back to manual input if detection fails
+- Provides confirmation prompt for detected username
+
+**Example Output:**
+
+```bash
+$ pm init
+🚀 Initializing PM...
+
+🔍 Detecting GitHub username from GitHub CLI...
+✅ Detected GitHub username: your-username
+> Use detected GitHub username 'your-username'? Yes
+> Configuration directory: ~/.config/pm
+  Where PM configuration files will be stored (press Enter for default)
+> Projects root directory: ~/workspace  
+  Where your projects will be stored (press Enter for default)
+> Choose your preferred editor: hx (Helix)
+> Automatically open editor when switching to projects? Yes
+> Show git status in project listings? Yes
+
+📂 Creating configuration directory: /Users/you/.config/pm
+📁 Creating projects root directory: /Users/you/workspace
+
+✅ PM initialized successfully
+👤 GitHub username: your-username
+📂 Config directory: /Users/you/.config/pm
+📁 Projects root: /Users/you/workspace
+⚙️ Config file: /Users/you/.config/pm/config.yml
+
+🎯 Next steps:
+  pm add <path>     # Add your first project
+  pm scan           # Scan for existing repositories
+  pm load <owner>/<repo> # Clone from GitHub
+  pm browse         # Browse and select GitHub repositories
+```
+
+**Fallback Example (GitHub CLI not authenticated):**
+
+```bash
+$ pm init
+🚀 Initializing PM...
+
+🔍 Detecting GitHub username from GitHub CLI...
+⚠️  Could not detect GitHub username from GitHub CLI
+💡 Make sure GitHub CLI is installed and you're authenticated with 'gh auth login'
+> GitHub username: [manual input required]
+```
+
 **Behavior:**
 
-*   If `config.json` already exists, it will warn the user and exit.
-*   If `config.json` does not exist, it will prompt the user for:
-    *   Your GitHub username.
-    *   The absolute path to your projects root directory (e.g., `~/workspace`). This path will be used to resolve relative paths when adding projects.
-*   Creates the `config.json` file with the provided information.
+*   If configuration already exists, warns the user and provides instructions to reinitialize
+*   Creates configuration and projects directories if they don't exist
+*   Generates a YAML configuration file with user preferences
+*   Provides clear next steps for getting started
 
 ### `pm project` (alias: `pm p`)
 
@@ -156,4 +217,83 @@ pm tag show # If run inside a project directory
 
 *   If `PROJECT_NAME` is provided, it shows tags for that project.
 *   If `PROJECT_NAME` is omitted, it attempts to find a project associated with the current working directory and displays its tags.
+
+## GitHub Integration
+
+### `pm browse`
+
+Browse and select repositories from GitHub with interactive multi-select interface.
+
+**Usage:**
+
+```bash
+pm browse                        # Browse your repositories  
+pm browse --username other-user  # Browse another user's repositories
+```
+
+**Options:**
+
+*   `-u, --username <USERNAME>`: GitHub username to browse (defaults to configured username)
+
+**Behavior:**
+
+*   Connects to GitHub API (uses GitHub CLI authentication if available)
+*   Displays all repositories (public and private if authenticated)
+*   Provides multi-select interface with repository details
+*   Shows privacy status (🔒 private, 🌐 public) and fork status (🍴)
+*   Displays programming language and description
+*   Clones selected repositories with progress bars
+*   Adds cloned repositories to PM management
+
+### `pm load <REPO>`
+
+Clone a specific repository from GitHub.
+
+**Usage:**
+
+```bash
+pm load microsoft/vscode                # Clone to default location
+pm load owner/repo --directory ~/custom # Clone to custom directory
+```
+
+**Arguments:**
+
+*   `<REPO>`: Repository in `owner/repo` format
+
+**Options:**
+
+*   `-d, --directory <DIRECTORY>`: Target directory (defaults to `<projects_root>/<owner>/<repo>`)
+
+**Behavior:**
+
+*   Clones repository from GitHub
+*   Creates parent directories if needed
+*   Adds cloned project to PM management
+*   Assigns 'github' tag automatically
+
+### `pm scan`
+
+Scan directories for existing Git repositories and add them to PM.
+
+**Usage:**
+
+```bash
+pm scan                    # Scan default workspace (~/workspace)
+pm scan ~/Development      # Scan specific directory
+pm scan --show-all         # Show all found repositories without selection
+```
+
+**Options:**
+
+*   `-d, --directory <DIRECTORY>`: Directory to scan (defaults to ~/workspace)
+*   `--show-all`: Show all repositories found, don't prompt for selection
+
+**Behavior:**
+
+*   Recursively scans directories (max depth: 3)
+*   Identifies Git repositories and project roots
+*   Filters out already managed projects
+*   Provides multi-select interface for adding new projects
+*   Assigns 'scanned' tag to added projects
+*   Preserves Git remote URLs as descriptions
 

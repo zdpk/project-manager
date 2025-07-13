@@ -19,7 +19,7 @@ pub enum ExportFormat {
 // Valid configuration keys for validation
 const VALID_KEYS: &[&str] = &[
     "version",
-    "github_username",
+    "config_path",
     "projects_root_dir",
     "editor",
     "settings.auto_open_editor",
@@ -48,7 +48,11 @@ pub async fn handle_show() -> Result<()> {
     println!("├─────────────────────┼────────────────────────────────┤");
 
     print_config_row("Version", &config.version, max_width);
-    print_config_row("GitHub Username", &config.github_username, max_width);
+    print_config_row(
+        "Config Path",
+        &config.config_path.display().to_string(),
+        max_width,
+    );
     print_config_row(
         "Projects Root",
         &config.projects_root_dir.display().to_string(),
@@ -144,22 +148,6 @@ pub async fn handle_validate() -> Result<()> {
             println!("✅ Configuration is valid");
             println!();
             println!("{}", "📋 Validation summary:".blue().bold());
-
-            // GitHub username validation
-            if config.github_username.is_empty() {
-                println!("  - GitHub username: {} empty", "⚠️".yellow());
-            } else if config
-                .github_username
-                .chars()
-                .all(|c| c.is_alphanumeric() || c == '-')
-            {
-                println!("  - GitHub username format: {} valid", "✓".green());
-            } else {
-                println!(
-                    "  - GitHub username format: {} invalid characters",
-                    "❌".red()
-                );
-            }
 
             // Projects root directory validation
             if config.projects_root_dir.exists() {
@@ -353,7 +341,7 @@ pub async fn handle_list() -> Result<()> {
 
     println!("{}", "🔧 Basic Settings:".yellow().bold());
     list_config_key(&config_value, "version", "string");
-    list_config_key(&config_value, "github_username", "string");
+    list_config_key(&config_value, "config_path", "path");
     list_config_key(&config_value, "projects_root_dir", "path");
     list_config_key(&config_value, "editor", "string");
 
@@ -472,14 +460,9 @@ fn parse_value_with_validation(key: &str, value: &str) -> Result<Value> {
             }
             Ok(Value::Number(num.into()))
         }
-        "github_username" => {
-            if value.is_empty() {
-                return Err(anyhow::anyhow!("GitHub username cannot be empty"));
-            }
-            if !value.chars().all(|c| c.is_alphanumeric() || c == '-') {
-                return Err(anyhow::anyhow!("Invalid GitHub username format"));
-            }
-            Ok(Value::String(value.to_string()))
+        "config_path" => {
+            let path = PathBuf::from(shellexpand::tilde(value).into_owned());
+            Ok(Value::String(path.display().to_string()))
         }
         _ => {
             // For other string values, just store as string
@@ -1141,12 +1124,6 @@ pub async fn handle_setup(quick: bool) -> Result<()> {
 
     let mut config = Config::default();
 
-    // GitHub username
-    let github_username = handle_inquire_error(Text::new("GitHub username:")
-        .with_default(&config.github_username)
-        .prompt())?;
-    config.github_username = github_username;
-
     // Projects root directory
     let default_root = dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
@@ -1481,15 +1458,6 @@ async fn add_to_history(action: &str, details: &str) -> Result<()> {
 
 fn show_config_diff(old: &Config, new: &Config) -> Result<()> {
     // Simple field-by-field comparison
-    if old.github_username != new.github_username {
-        println!(
-            "  {} {} → {}",
-            "github_username:".yellow(),
-            old.github_username.red(),
-            new.github_username.green()
-        );
-    }
-
     if old.projects_root_dir != new.projects_root_dir {
         println!(
             "  {} {} → {}",
