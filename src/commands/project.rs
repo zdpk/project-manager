@@ -10,7 +10,7 @@ use chrono::Utc;
 use colored::*;
 use git2::Repository;
 use indicatif::{ProgressBar, ProgressStyle};
-use inquire::{Confirm, MultiSelect, Select, Text};
+use inquire::{Confirm, MultiSelect, Text};
 use octocrab::{Octocrab, params::users::repos::Type as RepoType, params::repos::Sort};
 use std::collections::HashSet;
 use std::fs;
@@ -246,55 +246,48 @@ async fn select_tags_interactive(config: &Config) -> Result<Vec<String>> {
     let mut sorted_tags: Vec<(String, usize)> = tag_counts.into_iter().collect();
     sorted_tags.sort_by(|a, b| b.1.cmp(&a.1));
 
-    if sorted_tags.is_empty() {
-        // No existing tags - ask if user wants to add any
-        let add_tags = handle_inquire_error(Confirm::new("Add tags to this project?")
-            .with_default(false)
-            .prompt())?;
-        
-        if !add_tags {
-            return Ok(Vec::new());
-        }
-
-        // Allow user to add new tags
-        return add_new_tags(Vec::new()).await;
-    }
-
-    // Create options list
+    // Create options list for MultiSelect
     let mut options = Vec::new();
     for (tag, count) in &sorted_tags {
         options.push(format!("{} ({} projects)", tag, count));
     }
-    options.push("+ Add new tag".to_string());
-    options.push("✅ Finish selection".to_string());
 
+    // Always show the tag selection interface, even if no existing tags
+    let help_message = if options.is_empty() {
+        "No existing tags • Enter: no tags • Type new tags and Space to create"
+    } else {
+        "Type to search • Space to select • Enter to confirm"
+    };
+
+    let selections = handle_inquire_error(
+        MultiSelect::new("🏷️  Select tags:", options)
+            .with_help_message(help_message)
+            .prompt()
+    )?;
+
+    // Extract tag names from selections
     let mut selected_tags = Vec::new();
+    for selection in selections {
+        let tag_name = selection.split(" (").next().unwrap_or(&selection).to_string();
+        selected_tags.push(tag_name);
+    }
 
-    loop {
-        // Show current selection
-        if !selected_tags.is_empty() {
-            println!("\n🏷️  Current tags: {}", selected_tags.join(", "));
-        }
-
-        println!("\n📋 Available tags:");
-        let selection = handle_inquire_error(
-            Select::new("Select tag (or finish):", options.clone())
+    // If no existing tags were selected and there are existing tags, ask for new ones
+    if selected_tags.is_empty() {
+        // Allow adding new tags via text input
+        let add_new = handle_inquire_error(
+            Text::new("Create new tags (space-separated, or Enter for no tags):")
+                .with_help_message("e.g., 'rust backend api'")
                 .prompt()
         )?;
 
-        if selection == "✅ Finish selection" {
-            break;
-        } else if selection == "+ Add new tag" {
-            selected_tags = add_new_tags(selected_tags).await?;
-        } else {
-            // Extract tag name from "tag (count projects)" format
-            let tag_name = selection.split(" (").next().unwrap_or(&selection).to_string();
-            
-            if !selected_tags.contains(&tag_name) {
-                selected_tags.push(tag_name.clone());
-                println!("✅ Added tag '{}'", tag_name);
-            } else {
-                println!("ℹ️  Tag '{}' already selected", tag_name);
+        if !add_new.trim().is_empty() {
+            // Parse space-separated tags
+            for tag in add_new.split_whitespace() {
+                let clean_tag = tag.trim().to_lowercase();
+                if !clean_tag.is_empty() && !selected_tags.contains(&clean_tag) {
+                    selected_tags.push(clean_tag);
+                }
             }
         }
     }
@@ -302,30 +295,6 @@ async fn select_tags_interactive(config: &Config) -> Result<Vec<String>> {
     Ok(selected_tags)
 }
 
-async fn add_new_tags(mut current_tags: Vec<String>) -> Result<Vec<String>> {
-    loop {
-        let new_tag = handle_inquire_error(
-            Text::new("Enter new tag (or press Enter to finish):")
-                .with_help_message("Use descriptive tags like 'rust', 'frontend', 'work'")
-                .prompt()
-        )?;
-
-        if new_tag.trim().is_empty() {
-            break;
-        }
-
-        let tag = new_tag.trim().to_lowercase();
-        
-        if !current_tags.contains(&tag) {
-            current_tags.push(tag.clone());
-            println!("✅ Added tag '{}'", tag);
-        } else {
-            println!("ℹ️  Tag '{}' already added", tag);
-        }
-    }
-
-    Ok(current_tags)
-}
 
 pub async fn handle_list(
     tags: &[String],
