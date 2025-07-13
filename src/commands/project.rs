@@ -913,6 +913,21 @@ pub async fn handle_load_silent(repo: &str, directory: Option<&Path>) -> Result<
     load_repository_internal(repo, directory, false).await
 }
 
+/// Handle clone command - either interactive browse or direct clone
+pub async fn handle_clone(repo: Option<&str>, directory: Option<&Path>) -> Result<()> {
+    match repo {
+        Some(repo_str) => {
+            // Direct clone: pm clone <owner>/<repo>
+            handle_load(repo_str, directory).await
+        }
+        None => {
+            // Interactive browse: pm clone
+            handle_github_repo_selection(None).await?;
+            Ok(())
+        }
+    }
+}
+
 pub async fn handle_load(repo: &str, directory: Option<&Path>) -> Result<()> {
     load_repository_internal(repo, directory, true).await
 }

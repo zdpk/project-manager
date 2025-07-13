@@ -47,6 +47,10 @@ enum Commands {
     #[command(subcommand, alias = "p")]
     Project(ProjectCommands),
 
+    /// GitHub integration (clone, scan)
+    #[command(subcommand, alias = "gh")]
+    Github(GithubCommands),
+
     /// Manage project tags
     Tag {
         #[command(subcommand)]
@@ -56,8 +60,22 @@ enum Commands {
     /// Manage configuration
     #[command(subcommand, alias = "c")]
     Config(ConfigCommands),
+
     /// Initialize PM with basic configuration
     Init,
+}
+
+#[derive(Subcommand)]
+enum GithubCommands {
+    /// Clone repositories from GitHub (interactive browse or direct clone)
+    Clone {
+        /// Repository in format owner/repo (optional for interactive browse)
+        repo: Option<String>,
+
+        /// Target directory (defaults to <root_dir>/<owner>/<repo>)
+        #[arg(short, long)]
+        directory: Option<PathBuf>,
+    },
 
     /// Scan for Git repositories and add them to PM
     Scan {
@@ -68,71 +86,6 @@ enum Commands {
         /// Show all repositories found, don't prompt for selection
         #[arg(long)]
         show_all: bool,
-    },
-
-    /// Load (clone) a repository from GitHub
-    Load {
-        /// Repository in format owner/repo
-        repo: String,
-
-        /// Target directory (defaults to <root_dir>/<owner>/<repo>)
-        #[arg(short, long)]
-        directory: Option<PathBuf>,
-    },
-
-    /// Browse and select repositories from GitHub
-    Browse {
-        /// GitHub username (defaults to configured username)
-        #[arg(short, long)]
-        username: Option<String>,
-    },
-
-    /// Add a new project to manage
-    Add {
-        /// Path to the project directory
-        path: PathBuf,
-
-        #[arg(short, long)]
-        name: Option<String>,
-
-        #[arg(short, long, value_delimiter = ',')]
-        tags: Vec<String>,
-
-        #[arg(short, long)]
-        description: Option<String>,
-    },
-
-    /// List managed projects  
-    #[command(alias = "ls")]
-    List {
-        /// Filter projects by tags (comma-separated, all tags must match)
-        #[arg(short = 't', long, value_delimiter = ',')]
-        tags: Vec<String>,
-
-        /// Filter projects by tags (comma-separated, any tag can match)
-        #[arg(long, value_delimiter = ',')]
-        tags_any: Vec<String>,
-
-        /// Show only projects updated within the last time period (e.g., 7d, 2w, 1m, 1y)
-        #[arg(short = 'r', long)]
-        recent: Option<String>,
-
-        /// Limit the number of results
-        #[arg(short = 'l', long)]
-        limit: Option<usize>,
-
-        /// Show detailed information
-        #[arg(short = 'd', long)]
-        detailed: bool,
-    },
-
-    /// Switch to a project directory and open editor
-    #[command(alias = "s")]
-    Switch {
-        name: String,
-
-        #[arg(long)]
-        no_editor: bool,
     },
 }
 
@@ -368,37 +321,6 @@ async fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Add {
-            path,
-            name,
-            tags,
-            description,
-        } => {
-            if let Err(e) = project::handle_add(path, name, tags, description).await {
-                handle_config_error(e);
-            }
-        }
-        Commands::List {
-            tags,
-            tags_any,
-            recent,
-            limit,
-            detailed,
-        } => {
-            if let Err(e) = project::handle_list(tags, tags_any, recent, limit, *detailed).await {
-                handle_config_error(e);
-            }
-        }
-        Commands::Switch { name, no_editor } => match load_config().await {
-            Ok(mut config) => {
-                if let Err(e) = project::handle_switch(&mut config, name, *no_editor).await {
-                    handle_error(e, ERROR_PROJECT_NOT_FOUND);
-                }
-            }
-            Err(e) => {
-                handle_config_error(e);
-            }
-        },
         Commands::Project(project_command) => match project_command {
             ProjectCommands::Add {
                 path,
@@ -570,29 +492,26 @@ async fn main() {
                 handle_error(e, "Failed to initialize PM");
             }
         }
-        Commands::Scan {
-            directory,
-            show_all,
-        } => {
-            if let Err(e) = project::handle_scan(directory.as_deref(), *show_all).await {
-                handle_config_error(e);
-            }
-        }
-        Commands::Load { repo, directory } => {
-            if let Err(e) = project::handle_load(repo, directory.as_deref()).await {
-                handle_config_error(e);
-            }
-        }
-        Commands::Browse { username } => {
-            if let Err(e) = project::handle_github_repo_selection(username.as_deref()).await {
-                // Check if this is a user cancellation (Ctrl-C)
-                if let Some(pm_error) = e.downcast_ref::<PmError>() {
-                    if matches!(pm_error, PmError::OperationCancelled) {
-                        // Gracefully exit on cancellation
-                        std::process::exit(0);
+        Commands::Github(github_command) => match github_command {
+            GithubCommands::Clone { repo, directory } => {
+                if let Err(e) = project::handle_clone(repo.as_deref(), directory.as_deref()).await {
+                    // Check if this is a user cancellation (Ctrl-C)
+                    if let Some(pm_error) = e.downcast_ref::<PmError>() {
+                        if matches!(pm_error, PmError::OperationCancelled) {
+                            // Gracefully exit on cancellation
+                            std::process::exit(0);
+                        }
                     }
+                    handle_config_error(e);
                 }
-                handle_error(e, "Failed to browse GitHub repositories");
+            }
+            GithubCommands::Scan {
+                directory,
+                show_all,
+            } => {
+                if let Err(e) = project::handle_scan(directory.as_deref(), *show_all).await {
+                    handle_config_error(e);
+                }
             }
         }
     }

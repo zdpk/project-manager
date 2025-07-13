@@ -62,25 +62,25 @@ cargo install --path .
 pm init
 
 # Add a project
-pm add ~/workspace/my-project --tags rust,backend
+pm project add ~/workspace/my-project --tags rust,backend
 
 # Scan for existing repositories
-pm scan
+pm github scan
 
-# Browse and clone GitHub repositories
-pm browse
+# Clone GitHub repositories (interactive browse)
+pm github clone
 
 # List all projects
-pm ls
+pm project list
 
-# List projects with filters
-pm ls --tags rust --recent 7d --limit 10
+# List projects with filters (aliases work too)
+pm p ls --tags rust --recent 7d --limit 10
 
 # Switch to a project (opens editor automatically)
-pm s my-project
+pm project switch my-project
 
-# Switch without opening editor
-pm s my-project --no-editor
+# Switch without opening editor (aliases work too)
+pm p s my-project --no-editor
 ```
 
 ### Initial Setup Example
@@ -112,10 +112,10 @@ $ pm init
 ⚙️ Config file: /Users/you/.config/pm/config.yml
 
 🎯 Next steps:
-  pm add <path>     # Add your first project
-  pm scan           # Scan for existing repositories
-  pm load <owner>/<repo> # Clone from GitHub
-  pm browse         # Browse and select GitHub repositories
+  pm project add <path>          # Add your first project
+  pm github scan                 # Scan for existing repositories
+  pm github clone <owner>/<repo> # Clone specific repository
+  pm github clone                # Browse and select repositories
 
 📖 Use 'pm --help' to see all available commands
 ```
@@ -128,37 +128,34 @@ $ pm init
 
 ```bash
 # Add projects
-pm add <path>                           # Add current or specified directory
-pm add . --name "My Project" --tags web,frontend
-pm add ~/code/api --description "REST API service"
+pm project add <path>                           # Add current or specified directory
+pm project add . --name "My Project" --tags web,frontend
+pm p add ~/code/api --description "REST API service"  # Using alias
 
 # List projects
-pm ls                                   # List all projects
-pm ls --tags rust,backend              # Filter by tags (AND logic)
-pm ls --tags-any frontend,web          # Filter by tags (OR logic)
-pm ls --recent 7d                       # Show recent activity (7 days)
-pm ls --detailed                        # Show detailed information
+pm project list                                 # List all projects
+pm p ls --tags rust,backend                    # Filter by tags (AND logic) 
+pm p ls --tags-any frontend,web                # Filter by tags (OR logic)
+pm p ls --recent 7d                             # Show recent activity (7 days)
+pm p ls --detailed                              # Show detailed information
 
 # Switch projects
-pm switch <name>                        # Switch and open editor
-pm s <name> --no-editor                # Switch without editor
-
-# Scan for repositories
-pm scan                                 # Scan default workspace
-pm scan ~/Development                   # Scan specific directory
-pm scan --show-all                      # Show all found repositories
+pm project switch <name>                        # Switch and open editor
+pm p s <name> --no-editor                      # Switch without editor (alias)
 ```
 
 ### GitHub Integration
 
 ```bash
-# Browse and select repositories interactively
-pm browse                               # Browse your repositories
-pm browse --username other-user         # Browse another user's repositories
+# Clone repositories (interactive browse or direct)
+pm github clone                               # Interactive browse your repositories
+pm gh clone microsoft/vscode                  # Clone specific repository
+pm gh clone owner/repo --directory ~/custom   # Clone to custom directory
 
-# Clone and add repositories
-pm load microsoft/vscode                # Clone to default location
-pm load owner/repo --directory ~/custom # Clone to custom directory
+# Scan for repositories
+pm github scan                                # Scan default workspace
+pm gh scan ~/Development                      # Scan specific directory
+pm gh scan --show-all                        # Show all found repositories
 ```
 
 ### Tag Management
