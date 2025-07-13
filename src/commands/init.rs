@@ -167,7 +167,7 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
                 .unwrap_or(false);
 
             if load_repo {
-                let repo = handle_inquire_error(Text::new("Repository (owner/repo format):")
+                let repo = handle_inquire_error(Text::new("Repository (<owner>/<repo> format):")
                     .with_help_message("e.g., microsoft/vscode or your-username/my-project")
                     .prompt()
 )?;
@@ -201,7 +201,7 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
                 .unwrap_or(false);
 
             if load_repo {
-                let repo = handle_inquire_error(Text::new("Repository (owner/repo format):")
+                let repo = handle_inquire_error(Text::new("Repository (<owner>/<repo> format):")
                     .with_help_message("e.g., microsoft/vscode or your-username/my-project")
                     .prompt()
 )?;
