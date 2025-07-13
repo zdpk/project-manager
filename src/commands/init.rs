@@ -142,6 +142,7 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
     // Step 4: Execute setup actions based on mode
     let mut projects_added = 0;
     let mut scan_failed = false;
+    let mut repo_selection_cancelled = false;
     match selected_mode {
         InitMode::Detect => {
             println!("\n🔍 Auto-detecting existing repositories...");
@@ -183,6 +184,7 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
                             if let Some(pm_error) = e.downcast_ref::<PmError>() {
                                 if matches!(pm_error, PmError::OperationCancelled) {
                                     println!("📭 No repositories selected from GitHub");
+                                    repo_selection_cancelled = true;
                                     // Don't propagate error - this is expected behavior
                                 } else {
                                     display_warning(&format!("Failed to fetch repositories: {}", e));
@@ -251,6 +253,7 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
                             if let Some(pm_error) = e.downcast_ref::<PmError>() {
                                 if matches!(pm_error, PmError::OperationCancelled) {
                                     println!("📭 No repositories selected from GitHub");
+                                    repo_selection_cancelled = true;
                                     // Don't propagate error - this is expected behavior
                                 } else {
                                     display_warning(&format!("Failed to fetch repositories: {}", e));
@@ -292,8 +295,8 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
         println!("  pm ls             # List your projects");
         println!("  pm s <name>       # Switch to project");
         println!("  pm add <path>     # Add more projects");
-    } else if !scan_failed {
-        // Only show next steps if scan didn't fail
+    } else if !scan_failed && !repo_selection_cancelled {
+        // Only show next steps if scan didn't fail and user didn't cancel repo selection
         match selected_mode {
             InitMode::None => {
                 println!("\n🎯 Next steps:");
