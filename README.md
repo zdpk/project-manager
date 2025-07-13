@@ -61,26 +61,35 @@ cargo install --path .
 # Interactive initialization - sets up PM configuration
 pm init
 
-# Add a project
-pm project add ~/workspace/my-project --tags rust,backend
+# Add current directory as a project (with interactive tag selection)
+pm add .
+
+# Add all subdirectories in current folder as projects
+pm add *
+
+# Add/create a specific project (interactive tags, git init option)
+pm add my-new-project
 
 # Scan for existing repositories
-pm github scan
+pm scan
 
 # Clone GitHub repositories (interactive browse)
-pm github clone
+pm clone
 
-# List all projects
-pm project list
+# Clone specific repository
+pm clone owner/repo
 
-# List projects with filters (aliases work too)
-pm p ls --tags rust --recent 7d --limit 10
+# List all projects (alias: ls)
+pm list
 
-# Switch to a project (opens editor automatically)
-pm project switch my-project
+# List projects with filters
+pm ls --tags rust --recent 7d --limit 10
 
-# Switch without opening editor (aliases work too)
-pm p s my-project --no-editor
+# Switch to a project (opens editor automatically, alias: sw)
+pm switch my-project
+
+# Switch without opening editor
+pm sw my-project --no-editor
 ```
 
 ### Initial Setup Example
@@ -96,26 +105,22 @@ $ pm init
 > Use detected GitHub username 'your-username'? Yes
 > Configuration directory: ~/.config/pm
   Where PM configuration files will be stored (press Enter for default)
-> Projects root directory: ~/workspace  
-  Where your projects will be stored (press Enter for default)
 > Choose your preferred editor: hx (Helix)
 > Automatically open editor when switching to projects? Yes
 > Show git status in project listings? Yes
 
 📂 Creating configuration directory: /Users/you/.config/pm
-📁 Creating projects root directory: /Users/you/workspace
 
 ✅ PM initialized successfully
-👤 GitHub username: your-username
 📂 Config directory: /Users/you/.config/pm
-📁 Projects root: /Users/you/workspace
 ⚙️ Config file: /Users/you/.config/pm/config.yml
 
 🎯 Next steps:
-  pm project add <path>          # Add your first project
-  pm github scan                 # Scan for existing repositories
-  pm github clone <owner>/<repo> # Clone specific repository
-  pm github clone                # Browse and select repositories
+  pm add .                       # Add current directory
+  pm add *                       # Add all subdirectories
+  pm scan                        # Scan for existing repositories
+  pm clone <owner>/<repo>        # Clone specific repository
+  pm clone                       # Browse and select repositories
 
 📖 Use 'pm --help' to see all available commands
 ```
@@ -124,54 +129,58 @@ $ pm init
 
 ## Command Reference
 
+All commands support aliases shown in parentheses. Use `pm --help` for complete usage information.
+
 ### Project Management
 
 ```bash
-# Add projects
-pm project add <path>                           # Add current or specified directory
-pm project add . --name "My Project" --tags web,frontend
-pm p add ~/code/api --description "REST API service"  # Using alias
+# Add projects (a)
+pm add .                                        # Add current directory (interactive tags)
+pm add *                                        # Add all subdirectories in current folder
+pm add my-project                               # Create and add new project (with git init option)
+pm add /path/to/project --name "Custom Name"   # Add with custom name
+pm add . --description "My awesome project"    # Add with description
 
-# List projects
-pm project list                                 # List all projects
-pm p ls --tags rust,backend                    # Filter by tags (AND logic) 
-pm p ls --tags-any frontend,web                # Filter by tags (OR logic)
-pm p ls --recent 7d                             # Show recent activity (7 days)
-pm p ls --detailed                              # Show detailed information
+# List projects (ls)
+pm list                                         # List all projects
+pm ls --tags rust,backend                      # Filter by tags (AND logic) 
+pm ls --tags-any frontend,web                  # Filter by tags (OR logic)
+pm ls --recent 7d                               # Show recent activity (7 days)
+pm ls --detailed                                # Show detailed information
 
-# Switch projects
-pm project switch <name>                        # Switch and open editor
-pm p s <name> --no-editor                      # Switch without editor (alias)
+# Switch projects (sw)
+pm switch <name>                                # Switch and open editor
+pm sw <name> --no-editor                       # Switch without opening editor
 ```
 
 ### GitHub Integration
 
 ```bash
-# Clone repositories (interactive browse or direct)
-pm github clone                               # Interactive browse your repositories
-pm gh clone microsoft/vscode                  # Clone specific repository
-pm gh clone owner/repo --directory ~/custom   # Clone to custom directory
+# Clone repositories (cl)
+pm clone                                        # Interactive browse your repositories
+pm clone microsoft/vscode                      # Clone specific repository
+pm clone owner/repo --directory ~/custom       # Clone to custom directory
 
-# Scan for repositories
-pm github scan                                # Scan default workspace
-pm gh scan ~/Development                      # Scan specific directory
-pm gh scan --show-all                        # Show all found repositories
+# Scan for repositories (sc)
+pm scan                                         # Scan current directory
+pm scan ~/Development                           # Scan specific directory
+pm scan --show-all                             # Show all found repositories
 ```
 
 ### Tag Management
 
 ```bash
-# Manage tags
-pm tag add <project> <tags...>         # Add tags to project
-pm tag remove <project> <tags...>      # Remove tags from project
-pm tag list                            # List all available tags
-pm tag show [project]                  # Show tags for project
+# Manage tags (t)
+pm tag add <project> <tags...>                 # Add tags to project
+pm tag remove <project> <tags...>              # Remove tags from project
+pm tag list                                     # List all available tags
+pm tag show [project]                          # Show tags for project
 ```
 
 ### Configuration
 
 ```bash
-# View and edit configuration
+# View and edit configuration (cf)
 pm config show                         # Show current configuration
 pm config edit                         # Edit in your preferred editor
 pm config validate                     # Validate configuration file
@@ -203,10 +212,8 @@ pm config history --limit 10           # Show configuration history
 
 PM stores its configuration in a configurable location (default: `~/.config/pm/config.yml`). The configuration includes:
 
-- **GitHub username**: For repository cloning and GitHub integration
 - **Configuration path**: Where PM stores its configuration files (configurable during init)
-- **Projects root directory**: Where your projects are located
-- **Editor preference**: Your preferred code editor
+- **Editor preference**: Your preferred code editor  
 - **Application settings**: Auto-open editor, show git status, etc.
 - **Project data**: All managed projects and their metadata
 - **Machine metadata**: Access tracking across different machines
@@ -215,9 +222,7 @@ PM stores its configuration in a configurable location (default: `~/.config/pm/c
 
 ```yaml
 version: "1.0"
-github_username: "your-username"
 config_path: "/Users/you/.config/pm"
-projects_root_dir: "/Users/you/workspace"
 editor: "hx"
 settings:
   auto_open_editor: false
@@ -232,7 +237,6 @@ machine_metadata: {}
 During `pm init`, you can customize:
 
 - **Configuration Directory**: Where PM stores its files (default: `~/.config/pm`)
-- **Projects Root Directory**: Where your projects will be stored (default: `~/workspace`)
 - **Editor**: Your preferred code editor (VS Code, Helix, Vim, etc.)
 - **Auto-open Editor**: Whether to automatically open editor when switching projects
 - **Git Status Display**: Whether to show git status information in project listings
