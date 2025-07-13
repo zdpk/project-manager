@@ -141,6 +141,7 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
 
     // Step 4: Execute setup actions based on mode
     let mut projects_added = 0;
+    let mut scan_failed = false;
     match selected_mode {
         InitMode::Detect => {
             println!("\n🔍 Auto-detecting existing repositories...");
@@ -149,6 +150,7 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
                     projects_added += count;
                 }
                 Err(e) => {
+                    scan_failed = true;
                     display_warning(&format!("Auto-detection failed: {}", e));
                     println!("💡 You can run 'pm scan' later to detect repositories");
                 }
@@ -186,6 +188,7 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
                     projects_added += count;
                 }
                 Err(e) => {
+                    scan_failed = true;
                     display_warning(&format!("Auto-detection failed: {}", e));
                 }
             }
@@ -222,7 +225,8 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
         println!("  pm ls             # List your projects");
         println!("  pm s <name>       # Switch to project");
         println!("  pm add <path>     # Add more projects");
-    } else {
+    } else if !scan_failed {
+        // Only show next steps if scan didn't fail
         match selected_mode {
             InitMode::None => {
                 println!("\n🎯 Next steps:");
