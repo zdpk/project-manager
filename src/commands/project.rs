@@ -566,7 +566,7 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<usi
                 r.name,
                 r.path.display()
             );
-            expected == selected
+            expected == *selected
         }) {
             let git_updated_at = if repo.is_git {
                 get_last_git_commit_time(&repo.path).ok().flatten()
@@ -740,7 +740,17 @@ pub async fn handle_github_repo_selection(username: &str) -> Result<usize> {
     let _config = load_config().await?;
     let mut cloned_count = 0;
     
-    for selected in selection {
+    // Create progress bar for cloning repositories
+    let total_repos = selection.len();
+    let pb = ProgressBar::new(total_repos as u64);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("[{pos}/{len}] {msg} {bar:40.cyan/blue} {percent}%")
+            .unwrap()
+            .progress_chars("██▓▒░"),
+    );
+    
+    for (index, selected) in selection.iter().enumerate() {
         // Find the repository by matching the display string
         if let Some(repo) = repos.iter().find(|r| {
             let privacy = if r.is_private { "🔒" } else { "🌐" };
@@ -748,28 +758,44 @@ pub async fn handle_github_repo_selection(username: &str) -> Result<usize> {
             let lang = r.language.as_deref().unwrap_or("unknown");
             let desc = r.description.as_deref().unwrap_or("No description");
             let expected = format!("{}{} {} ({}) - {}", privacy, fork, r.name, lang, desc);
-            expected == selected
+            expected == *selected
         }) {
-            println!("📥 Cloning {} ...", repo.full_name);
+            pb.set_position(index as u64);
+            pb.set_message(format!("Cloning {}", repo.full_name));
             
-            // Use the existing handle_load function to clone the repository
-            if let Err(e) = handle_load(&repo.full_name, None).await {
-                display_warning(&format!("Failed to clone {}: {}", repo.full_name, e));
-            } else {
-                cloned_count += 1;
-                println!("✅ Cloned: {}", repo.full_name);
+            // Use the silent version for batch operations
+            match handle_load_silent(&repo.full_name, None).await {
+                Ok(_) => {
+                    cloned_count += 1;
+                }
+                Err(e) => {
+                    pb.println(format!("❌ Failed to clone {}: {}", repo.full_name, e));
+                }
             }
         }
     }
     
+    // Complete the progress bar
+    pb.set_position(total_repos as u64);
     if cloned_count > 0 {
-        println!("🎉 Successfully cloned {} repositories", cloned_count);
+        pb.finish_with_message(format!("✅ Successfully cloned {} repositories", cloned_count));
+    } else {
+        pb.finish_with_message("❌ No repositories were cloned");
     }
     
     Ok(cloned_count)
 }
 
+/// Silent version of handle_load for batch operations (no progress output)
+pub async fn handle_load_silent(repo: &str, directory: Option<&Path>) -> Result<()> {
+    load_repository_internal(repo, directory, false).await
+}
+
 pub async fn handle_load(repo: &str, directory: Option<&Path>) -> Result<()> {
+    load_repository_internal(repo, directory, true).await
+}
+
+async fn load_repository_internal(repo: &str, directory: Option<&Path>, show_progress: bool) -> Result<()> {
     // Parse owner/repo format
     let parts: Vec<&str> = repo.split('/').collect();
     if parts.len() != 2 {
@@ -802,21 +828,28 @@ pub async fn handle_load(repo: &str, directory: Option<&Path>) -> Result<()> {
     }
 
     let clone_url = format!("https://github.com/{}/{}.git", owner, repo_name);
-    println!("📥 Cloning {} to {}", clone_url, target_dir.display());
+    
+    if show_progress {
+        println!("📥 Cloning {} to {}", clone_url, target_dir.display());
 
-    // Clone the repository
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg}")
-            .unwrap(),
-    );
-    pb.set_message("Cloning repository...");
+        // Clone the repository with progress spinner
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} {msg}")
+                .unwrap(),
+        );
+        pb.set_message("Cloning repository...");
 
-    let _repo = Repository::clone(&clone_url, &target_dir)
-        .map_err(|e| anyhow::anyhow!("Failed to clone repository: {}", e))?;
+        let _repo = Repository::clone(&clone_url, &target_dir)
+            .map_err(|e| anyhow::anyhow!("Failed to clone repository: {}", e))?;
 
-    pb.finish_and_clear();
+        pb.finish_and_clear();
+    } else {
+        // Silent clone without progress display
+        let _repo = Repository::clone(&clone_url, &target_dir)
+            .map_err(|e| anyhow::anyhow!("Failed to clone repository: {}", e))?;
+    }
 
     // Add to PM
     let git_updated_at = get_last_git_commit_time(&target_dir).ok().flatten();
@@ -836,8 +869,10 @@ pub async fn handle_load(repo: &str, directory: Option<&Path>) -> Result<()> {
     config.add_project(project);
     save_config(&config).await?;
 
-    println!("✅ Successfully cloned and added {} to PM", repo_name);
-    println!("📁 Location: {}", target_dir.display());
+    if show_progress {
+        println!("✅ Successfully cloned and added {} to PM", repo_name);
+        println!("📁 Location: {}", target_dir.display());
+    }
 
     Ok(())
 }
