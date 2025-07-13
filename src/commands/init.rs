@@ -160,23 +160,45 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
             println!("\n🌐 GitHub integration ready!");
             println!("💡 Use 'pm load <owner>/<repo>' to clone and add repositories");
 
-            // Optionally prompt for first repository
-            let load_repo = handle_inquire_error(inquire::Confirm::new("Would you like to clone a repository now?")
-                .with_default(false)
-                .prompt())
-                .unwrap_or(false);
+            // Offer repository options
+            let repo_options = vec![
+                "📋 Browse and select from my repositories",
+                "📝 Enter specific repository manually",
+                "⏭️  Skip for now",
+            ];
 
-            if load_repo {
-                let repo = handle_inquire_error(Text::new("Repository (<owner>/<repo> format):")
-                    .with_help_message("e.g., microsoft/vscode or your-username/my-project")
+            let repo_choice = handle_inquire_error(
+                Select::new("How would you like to add repositories?", repo_options)
                     .prompt()
-)?;
+            )?;
 
-                if let Err(e) = project::handle_load(&repo, None).await {
-                    display_warning(&format!("Failed to load repository: {}", e));
-                    println!("💡 You can try again with: pm load {}", repo);
-                } else {
-                    projects_added += 1;
+            match repo_choice {
+                "📋 Browse and select from my repositories" => {
+                    match project::handle_github_repo_selection(&github_username).await {
+                        Ok(count) => {
+                            projects_added += count;
+                        }
+                        Err(e) => {
+                            display_warning(&format!("Failed to fetch repositories: {}", e));
+                            println!("💡 You can browse repositories later with a custom command");
+                        }
+                    }
+                }
+                "📝 Enter specific repository manually" => {
+                    let repo = handle_inquire_error(Text::new("Repository (<owner>/<repo> format):")
+                        .with_help_message("e.g., microsoft/vscode or your-username/my-project")
+                        .prompt()
+                    )?;
+
+                    if let Err(e) = project::handle_load(&repo, None).await {
+                        display_warning(&format!("Failed to load repository: {}", e));
+                        println!("💡 You can try again with: pm load {}", repo);
+                    } else {
+                        projects_added += 1;
+                    }
+                }
+                _ => {
+                    // Skip for now
                 }
             }
         }
@@ -195,22 +217,45 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
 
             // Then offer GitHub integration
             println!("\n🌐 GitHub integration ready!");
-            let load_repo = handle_inquire_error(inquire::Confirm::new("Would you like to clone a repository now?")
-                .with_default(false)
-                .prompt())
-                .unwrap_or(false);
+            
+            let repo_options = vec![
+                "📋 Browse and select from my repositories",
+                "📝 Enter specific repository manually",
+                "⏭️  Skip for now",
+            ];
 
-            if load_repo {
-                let repo = handle_inquire_error(Text::new("Repository (<owner>/<repo> format):")
-                    .with_help_message("e.g., microsoft/vscode or your-username/my-project")
+            let repo_choice = handle_inquire_error(
+                Select::new("How would you like to add repositories?", repo_options)
                     .prompt()
-)?;
+            )?;
 
-                if let Err(e) = project::handle_load(&repo, None).await {
-                    display_warning(&format!("Failed to load repository: {}", e));
-                    println!("💡 You can try again with: pm load {}", repo);
-                } else {
-                    projects_added += 1;
+            match repo_choice {
+                "📋 Browse and select from my repositories" => {
+                    match project::handle_github_repo_selection(&github_username).await {
+                        Ok(count) => {
+                            projects_added += count;
+                        }
+                        Err(e) => {
+                            display_warning(&format!("Failed to fetch repositories: {}", e));
+                            println!("💡 You can browse repositories later with a custom command");
+                        }
+                    }
+                }
+                "📝 Enter specific repository manually" => {
+                    let repo = handle_inquire_error(Text::new("Repository (<owner>/<repo> format):")
+                        .with_help_message("e.g., microsoft/vscode or your-username/my-project")
+                        .prompt()
+                    )?;
+
+                    if let Err(e) = project::handle_load(&repo, None).await {
+                        display_warning(&format!("Failed to load repository: {}", e));
+                        println!("💡 You can try again with: pm load {}", repo);
+                    } else {
+                        projects_added += 1;
+                    }
+                }
+                _ => {
+                    // Skip for now
                 }
             }
         }

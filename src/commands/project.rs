@@ -11,6 +11,7 @@ use colored::*;
 use git2::Repository;
 use indicatif::{ProgressBar, ProgressStyle};
 use inquire::{Confirm, MultiSelect};
+use octocrab::{Octocrab, params::users::repos::Type as RepoType, params::repos::Sort};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -19,6 +20,18 @@ use walkdir::WalkDir;
 
 // Type alias for complex project data tuple
 type ProjectData = (Project, Option<chrono::DateTime<chrono::Utc>>, u32);
+
+#[derive(Debug, Clone)]
+pub struct GitHubRepo {
+    pub name: String,
+    pub full_name: String,
+    pub description: Option<String>,
+    pub clone_url: String,
+    pub is_private: bool,
+    pub is_fork: bool,
+    pub language: Option<String>,
+    pub updated_at: Option<chrono::DateTime<Utc>>,
+}
 
 pub async fn handle_add(
     path: &PathBuf,
@@ -582,6 +595,112 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<usi
     println!("🎉 Successfully added {} repositories to PM", added_count);
 
     Ok(added_count)
+}
+
+/// Fetch user repositories from GitHub
+pub async fn fetch_github_repositories(username: &str) -> Result<Vec<GitHubRepo>> {
+    let octocrab = Octocrab::builder().build()?;
+    
+    println!("🔍 Fetching repositories for user: {}", username);
+    
+    let mut page = octocrab
+        .users(username)
+        .repos()
+        .r#type(RepoType::All)
+        .sort(Sort::Updated)
+        .per_page(100)
+        .send()
+        .await?;
+    
+    let mut all_repos = Vec::new();
+    
+    loop {
+        for repo in page.items {
+            all_repos.push(GitHubRepo {
+                name: repo.name,
+                full_name: repo.full_name.unwrap_or_default(),
+                description: repo.description,
+                clone_url: repo.clone_url.map(|url| url.to_string()).unwrap_or_default(),
+                is_private: repo.private.unwrap_or(false),
+                is_fork: repo.fork.unwrap_or(false),
+                language: repo.language.and_then(|v| v.as_str().map(|s| s.to_string())),
+                updated_at: repo.updated_at.map(|dt| dt.with_timezone(&Utc)),
+            });
+        }
+        
+        page = match octocrab.get_page(&page.next).await? {
+            Some(next_page) => next_page,
+            None => break,
+        };
+    }
+    
+    println!("📦 Found {} repositories", all_repos.len());
+    Ok(all_repos)
+}
+
+/// Show repository selection interface and clone selected repositories
+pub async fn handle_github_repo_selection(username: &str) -> Result<usize> {
+    let repos = fetch_github_repositories(username).await?;
+    
+    if repos.is_empty() {
+        println!("❌ No repositories found for user: {}", username);
+        return Ok(0);
+    }
+    
+    // Create display options for MultiSelect
+    let options: Vec<String> = repos
+        .iter()
+        .map(|repo| {
+            let privacy = if repo.is_private { "🔒" } else { "🌐" };
+            let fork = if repo.is_fork { "🍴" } else { "" };
+            let lang = repo.language.as_deref().unwrap_or("unknown");
+            let desc = repo.description.as_deref().unwrap_or("No description");
+            
+            format!("{}{} {} ({}) - {}", privacy, fork, repo.name, lang, desc)
+        })
+        .collect();
+    
+    let selection = handle_inquire_error(
+        MultiSelect::new("Select repositories to clone and add to PM:", options)
+            .with_page_size(15)
+            .prompt()
+    )?;
+    
+    if selection.is_empty() {
+        println!("❌ No repositories selected");
+        return Ok(0);
+    }
+    
+    let _config = load_config().await?;
+    let mut cloned_count = 0;
+    
+    for selected in selection {
+        // Find the repository by matching the display string
+        if let Some(repo) = repos.iter().find(|r| {
+            let privacy = if r.is_private { "🔒" } else { "🌐" };
+            let fork = if r.is_fork { "🍴" } else { "" };
+            let lang = r.language.as_deref().unwrap_or("unknown");
+            let desc = r.description.as_deref().unwrap_or("No description");
+            let expected = format!("{}{} {} ({}) - {}", privacy, fork, r.name, lang, desc);
+            expected == selected
+        }) {
+            println!("📥 Cloning {} ...", repo.full_name);
+            
+            // Use the existing handle_load function to clone the repository
+            if let Err(e) = handle_load(&repo.full_name, None).await {
+                display_warning(&format!("Failed to clone {}: {}", repo.full_name, e));
+            } else {
+                cloned_count += 1;
+                println!("✅ Cloned: {}", repo.full_name);
+            }
+        }
+    }
+    
+    if cloned_count > 0 {
+        println!("🎉 Successfully cloned {} repositories", cloned_count);
+    }
+    
+    Ok(cloned_count)
 }
 
 pub async fn handle_load(repo: &str, directory: Option<&Path>) -> Result<()> {
