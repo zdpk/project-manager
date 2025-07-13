@@ -164,91 +164,76 @@ pm scan --show-all                           # Show all found repositories
 
 ### Interactive Tag Selection
 
-When adding projects, PM provides a streamlined tag selection interface:
+When adding projects, PM provides a flexible tag input interface:
 
 ```
-🏷️  Select tags:
+🏷️  Tags: _____ 
 
-> _____ (Type to search tags)
-[ ] rust (15 projects)
-[ ] frontend (12 projects) 
-[ ] backend (18 projects)
-[ ] api (8 projects)
-[ ] microservice (5 projects)
-
-Type to search • Space to select • Enter to confirm
+Type tag name to search/create, space for multiple, Enter to confirm
 ```
 
 **Key Features:**
-- **🔍 Real-time filtering**: Type to search existing tags instantly
-- **📊 Usage insights**: See tag popularity with project counts  
-- **⚡ Direct selection**: No extra confirmation steps
-- **🎯 Multi-select**: Choose multiple tags with space
-- **✨ Easy creation**: Fallback to text input for new tags
+- **⚡ Direct input**: Type tags directly with space separation
+- **🔍 Fuzzy matching**: Smart matching against existing tags
+- **📊 Usage insights**: See tag popularity when browsing
+- **🎯 Multi-input**: `rust backend api` creates/matches multiple tags
+- **✨ Browse mode**: Empty input → browse existing tags
 
 **Example Workflows:**
 
-**Selecting existing tags:**
+**Direct tag input (recommended):**
 ```bash
 $ pm add ./my-rust-api
 
-🏷️  Select tags:
-[ ] rust (15 projects)
-[ ] backend (18 projects) 
-[ ] api (8 projects)
+🏷️  Tags: rust backend api
 
-Type to search • Space to select • Enter to confirm
+📋 Found matching existing tags:
+  rust → rust (15 projects)
+  backend → backend (18 projects)
 
-User types "back" → filters list:
-[x] backend (18 projects)
+✨ New tags to create:
+  api
 
-User presses Enter to confirm:
-✅ Added project 'my-rust-api' with tags: backend
+Create these new tags? Yes
+
+✅ Added project 'my-rust-api' with tags: rust, backend, api
 ```
 
-**Creating new tags:**
+**Browse existing tags:**
 ```bash
-$ pm add ./new-project
+$ pm add ./existing-project
 
-🏷️  Select tags:
-[ ] rust (15 projects)
-[ ] backend (18 projects)
+🏷️  Tags: [just press Enter]
 
-User presses Enter without selecting:
-Create new tags (space-separated, or Enter for no tags):
-> frontend react typescript
-
-✅ Added project 'new-project' with tags: frontend, react, typescript
-```
-
-**No tags at all:**
-```bash
-$ pm add ./simple-project
-
-🏷️  Select tags:
+Select from existing tags:
 [ ] rust (15 projects)
 [ ] backend (18 projects)
+[x] frontend (12 projects)
+[x] react (8 projects)
 
-User presses Enter:
-Create new tags (space-separated, or Enter for no tags):
-> [just presses Enter]
-
-✅ Added project 'simple-project' with no tags
+✅ Added project 'existing-project' with tags: frontend, react
 ```
 
-**First time using PM (no existing tags):**
+**Fuzzy matching:**
 ```bash
-$ pm add ./my-first-project
+$ pm add ./web-app
 
-🏷️  Select tags:
+🏷️  Tags: front typ
 
-No existing tags • Enter: no tags • Type new tags and Space to create
+📋 Found matching existing tags:
+  front → frontend (12 projects)
+  typ → typescript (6 projects)
 
-User can either press Enter for no tags or:
-Create new tags (space-separated, or Enter for no tags):
-> rust cli beginner
+✅ Added project 'web-app' with tags: frontend, typescript
+```
 
-✅ Added project 'my-first-project' with tags: rust, cli, beginner
+**No tags:**
+```bash
+$ pm add ./simple-script
+
+🏷️  Tags: [just press Enter, then Enter again in browse mode]
+
+✅ Added project 'simple-script' with no tags
 ```
 
 ### Tag Management

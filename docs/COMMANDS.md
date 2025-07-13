@@ -113,79 +113,73 @@ pm add . --description "My awesome project"    # Add with description
 
 **Interactive Tag Selection:**
 
-For single operations, PM provides a streamlined tag selection interface:
+For single operations, PM provides a flexible tag input interface:
 
 ```
-🏷️  Select tags:
+🏷️  Tags: _____ 
 
-> _____ (Type to search tags)
-[ ] rust (15 projects)
-[ ] frontend (12 projects) 
-[ ] backend (18 projects)
-[ ] api (8 projects)
-[ ] microservice (5 projects)
-
-Type to search • Space to select • Enter to confirm
+Type tag name to search/create, space for multiple, Enter to confirm
 ```
 
 **Tag Selection Features:**
-- **Instant access**: No confirmation dialogs, direct tag selection
-- **Real-time filtering**: Type to search existing tags instantly
-- **Usage statistics**: See project counts for informed decisions
-- **Multi-select**: Choose multiple tags with space key
-- **Simple workflow**: Enter confirms selection, no extra steps
-- **New tag fallback**: Text input when no existing tags selected
+- **Direct input**: Type tags with space separation (`rust backend api`)
+- **Fuzzy matching**: Intelligent matching against existing tags
+- **Hybrid approach**: Text input + MultiSelect fallback for browsing
+- **Usage statistics**: See project counts for existing tags
+- **Smart confirmation**: Preview new tags before creation
+- **Browse mode**: Empty input activates existing tag browser
 
 **Example Tag Selection Workflows:**
 
-**Selecting from existing tags:**
+**Direct tag input (fastest):**
 ```bash
 $ pm add ./my-rust-api
 
-🏷️  Select tags:
-[ ] rust (15 projects)
-[ ] backend (18 projects) 
-[ ] api (8 projects)
+🏷️  Tags: rust backend web
 
-Type to search • Space to select • Enter to confirm
+📋 Found matching existing tags:
+  rust → rust (15 projects)
+  backend → backend (18 projects)
 
-User types "api" to filter, then selects:
-[x] api (8 projects)
+✨ New tags to create:
+  web
 
-✅ Added project 'my-rust-api' with tags: api
+Create these new tags? Yes
+
+✅ Added project 'my-rust-api' with tags: rust, backend, web
    Path: /Users/you/projects/my-rust-api
 ```
 
-**Creating new tags:**
+**Fuzzy matching:**
 ```bash
-$ pm add ./experimental-app
+$ pm add ./frontend-app
 
-🏷️  Select tags:
-[ ] rust (15 projects)
-[ ] backend (18 projects)
+🏷️  Tags: front react typ
 
-User presses Enter without selecting any:
-Create new tags (space-separated, or Enter for no tags):
-> experimental ml python
+📋 Found matching existing tags:
+  front → frontend (12 projects)
+  react → react (8 projects)
+  typ → typescript (6 projects)
 
-✅ Added project 'experimental-app' with tags: experimental, ml, python
-   Path: /Users/you/projects/experimental-app
+✅ Added project 'frontend-app' with tags: frontend, react, typescript
+   Path: /Users/you/projects/frontend-app
 ```
 
-**No tags:**
+**Browse existing tags:**
 ```bash
-$ pm add ./utility-script
+$ pm add ./legacy-project
 
-🏷️  Select tags:
+🏷️  Tags: [press Enter with no input]
+
+Select from existing tags:
 [ ] rust (15 projects)
-[ ] backend (18 projects)
+[x] legacy (3 projects)
+[x] maintenance (5 projects)
 
-User presses Enter:
-Create new tags (space-separated, or Enter for no tags):
-> [presses Enter for no tags]
+Space to select • Enter to confirm • Ctrl+C to skip
 
-✅ Added project 'utility-script' with no tags
-   Path: /Users/you/projects/utility-script
+✅ Added project 'legacy-project' with tags: legacy, maintenance
+   Path: /Users/you/projects/legacy-project
 ```
 
 **Directory Creation:**
