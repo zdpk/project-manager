@@ -25,11 +25,6 @@ pub struct Config {
         example = "config_path_example"
     )]
     pub config_path: PathBuf,
-    #[schemars(
-        description = "Root directory where your projects are located",
-        example = "projects_root_example"
-    )]
-    pub projects_root_dir: PathBuf,
     #[serde(default = "default_editor")]
     #[schemars(description = "Default editor command", example = "editor_example")]
     pub editor: String,
@@ -84,9 +79,6 @@ fn config_path_example() -> &'static str {
     "~/.config/pm"
 }
 
-fn projects_root_example() -> &'static str {
-    "~/workspace"
-}
 
 fn editor_example() -> &'static str {
     "hx"
@@ -97,7 +89,6 @@ impl Default for Config {
         Self {
             version: CONFIG_VERSION.to_string(),
             config_path: PathBuf::new(),
-            projects_root_dir: PathBuf::new(),
             editor: String::new(), // 빈 문자열로 초기화
             settings: ConfigSettings::default(),
             projects: HashMap::new(),
@@ -245,18 +236,11 @@ impl Config {
     }
 }
 
-fn validate_config(config: &Config) -> Result<()> {
+fn validate_config(_config: &Config) -> Result<()> {
     // For now, we'll do basic validation without JSON schema
     // Full schema validation will be implemented in Phase 2
 
-    // Basic validations
-    if !config.projects_root_dir.exists() {
-        return Err(anyhow::anyhow!(
-            "Projects root directory does not exist: {}",
-            config.projects_root_dir.display()
-        ));
-    }
-
+    // Basic validations would go here
     Ok(())
 }
 

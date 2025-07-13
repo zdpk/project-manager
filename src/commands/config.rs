@@ -20,7 +20,6 @@ pub enum ExportFormat {
 const VALID_KEYS: &[&str] = &[
     "version",
     "config_path",
-    "projects_root_dir",
     "editor",
     "settings.auto_open_editor",
     "settings.show_git_status",
@@ -51,11 +50,6 @@ pub async fn handle_show() -> Result<()> {
     print_config_row(
         "Config Path",
         &config.config_path.display().to_string(),
-        max_width,
-    );
-    print_config_row(
-        "Projects Root",
-        &config.projects_root_dir.display().to_string(),
         max_width,
     );
     print_config_row("Editor", &config.editor, max_width);
@@ -149,12 +143,6 @@ pub async fn handle_validate() -> Result<()> {
             println!();
             println!("{}", "📋 Validation summary:".blue().bold());
 
-            // Projects root directory validation
-            if config.projects_root_dir.exists() {
-                println!("  - Projects root directory: {} exists", "✓".green());
-            } else {
-                println!("  - Projects root directory: {} does not exist", "❌".red());
-            }
 
             // Editor validation
             if Command::new(&config.editor)
@@ -342,7 +330,6 @@ pub async fn handle_list() -> Result<()> {
     println!("{}", "🔧 Basic Settings:".yellow().bold());
     list_config_key(&config_value, "version", "string");
     list_config_key(&config_value, "config_path", "path");
-    list_config_key(&config_value, "projects_root_dir", "path");
     list_config_key(&config_value, "editor", "string");
 
     println!();
@@ -1125,14 +1112,6 @@ pub async fn handle_setup(quick: bool) -> Result<()> {
     let mut config = Config::default();
 
     // Projects root directory
-    let default_root = dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("projects");
-
-    let projects_root = handle_inquire_error(Text::new("Projects root directory:")
-        .with_default(&default_root.display().to_string())
-        .prompt())?;
-    config.projects_root_dir = PathBuf::from(shellexpand::tilde(&projects_root).into_owned());
 
     // Editor
     let detected_editor = detect_editor();
@@ -1158,23 +1137,6 @@ pub async fn handle_setup(quick: bool) -> Result<()> {
     let recent_limit = handle_inquire_error(Select::new("Recent projects limit:", recent_limit_options).prompt())?;
     config.settings.recent_projects_limit = recent_limit as u32;
 
-    // Create projects directory if it doesn't exist
-    if !config.projects_root_dir.exists() {
-        let create_dir = handle_inquire_error(Confirm::new(&format!(
-            "Projects directory '{}' doesn't exist. Create it?",
-            config.projects_root_dir.display()
-        ))
-        .with_default(true)
-        .prompt())?;
-
-        if create_dir {
-            fs::create_dir_all(&config.projects_root_dir)?;
-            println!(
-                "📁 Created directory: {}",
-                config.projects_root_dir.display().to_string().green()
-            );
-        }
-    }
 
     // Save configuration
     save_config(&config).await?;
@@ -1197,23 +1159,12 @@ async fn setup_quick() -> Result<()> {
     let mut config = Config::default();
 
     // Set sensible defaults
-    if let Some(home) = dirs::home_dir() {
-        config.projects_root_dir = home.join("projects");
-    }
 
     config.editor = detect_editor();
     config.settings.auto_open_editor = true;
     config.settings.show_git_status = true;
     config.settings.recent_projects_limit = 15;
 
-    // Create projects directory
-    if !config.projects_root_dir.exists() {
-        fs::create_dir_all(&config.projects_root_dir)?;
-        println!(
-            "📁 Created directory: {}",
-            config.projects_root_dir.display().to_string().green()
-        );
-    }
 
     save_config(&config).await?;
 
@@ -1458,14 +1409,6 @@ async fn add_to_history(action: &str, details: &str) -> Result<()> {
 
 fn show_config_diff(old: &Config, new: &Config) -> Result<()> {
     // Simple field-by-field comparison
-    if old.projects_root_dir != new.projects_root_dir {
-        println!(
-            "  {} {} → {}",
-            "projects_root_dir:".yellow(),
-            old.projects_root_dir.display().to_string().red(),
-            new.projects_root_dir.display().to_string().green()
-        );
-    }
 
     if old.editor != new.editor {
         println!(
