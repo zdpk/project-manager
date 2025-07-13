@@ -68,7 +68,6 @@ pub async fn handle_add(
             };
             vec![resolved_path]
         }
-    }
     };
 
     let mut added_count = 0;
