@@ -186,25 +186,70 @@ Type to search • Space to select • Enter to confirm
 - **🎯 Multi-select**: Choose multiple tags with space
 - **✨ Easy creation**: Fallback to text input for new tags
 
-**Example Workflow:**
+**Example Workflows:**
+
+**Selecting existing tags:**
 ```bash
 $ pm add ./my-rust-api
 
 🏷️  Select tags:
+[ ] rust (15 projects)
+[ ] backend (18 projects) 
+[ ] api (8 projects)
 
-User types "back" → filters to backend:
-> back___
+Type to search • Space to select • Enter to confirm
+
+User types "back" → filters list:
 [x] backend (18 projects)
 
-User types space to select, then continues:
-[x] backend (18 projects)  
-[x] api (8 projects)
-
 User presses Enter to confirm:
-✅ Added project 'my-rust-api' with tags: backend, api
+✅ Added project 'my-rust-api' with tags: backend
 ```
 
-**No existing tags?** Just press Enter for no tags, or add new ones via text input.
+**Creating new tags:**
+```bash
+$ pm add ./new-project
+
+🏷️  Select tags:
+[ ] rust (15 projects)
+[ ] backend (18 projects)
+
+User presses Enter without selecting:
+Create new tags (space-separated, or Enter for no tags):
+> frontend react typescript
+
+✅ Added project 'new-project' with tags: frontend, react, typescript
+```
+
+**No tags at all:**
+```bash
+$ pm add ./simple-project
+
+🏷️  Select tags:
+[ ] rust (15 projects)
+[ ] backend (18 projects)
+
+User presses Enter:
+Create new tags (space-separated, or Enter for no tags):
+> [just presses Enter]
+
+✅ Added project 'simple-project' with no tags
+```
+
+**First time using PM (no existing tags):**
+```bash
+$ pm add ./my-first-project
+
+🏷️  Select tags:
+
+No existing tags • Enter: no tags • Type new tags and Space to create
+
+User can either press Enter for no tags or:
+Create new tags (space-separated, or Enter for no tags):
+> rust cli beginner
+
+✅ Added project 'my-first-project' with tags: rust, cli, beginner
+```
 
 ### Tag Management
 

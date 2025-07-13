@@ -136,28 +136,56 @@ Type to search • Space to select • Enter to confirm
 - **Simple workflow**: Enter confirms selection, no extra steps
 - **New tag fallback**: Text input when no existing tags selected
 
-**Example Tag Selection Workflow:**
+**Example Tag Selection Workflows:**
 
+**Selecting from existing tags:**
 ```bash
 $ pm add ./my-rust-api
 
 🏷️  Select tags:
-
-User types "back" to filter:
-> back___
-[x] backend (18 projects)
-
-User selects with space, interface shows selection:
-[x] backend (18 projects)  
+[ ] rust (15 projects)
+[ ] backend (18 projects) 
 [ ] api (8 projects)
 
-User continues typing "api" then selects:
-[x] backend (18 projects)  
+Type to search • Space to select • Enter to confirm
+
+User types "api" to filter, then selects:
 [x] api (8 projects)
 
-User presses Enter to confirm:
-✅ Added project 'my-rust-api' with tags: backend, api
+✅ Added project 'my-rust-api' with tags: api
    Path: /Users/you/projects/my-rust-api
+```
+
+**Creating new tags:**
+```bash
+$ pm add ./experimental-app
+
+🏷️  Select tags:
+[ ] rust (15 projects)
+[ ] backend (18 projects)
+
+User presses Enter without selecting any:
+Create new tags (space-separated, or Enter for no tags):
+> experimental ml python
+
+✅ Added project 'experimental-app' with tags: experimental, ml, python
+   Path: /Users/you/projects/experimental-app
+```
+
+**No tags:**
+```bash
+$ pm add ./utility-script
+
+🏷️  Select tags:
+[ ] rust (15 projects)
+[ ] backend (18 projects)
+
+User presses Enter:
+Create new tags (space-separated, or Enter for no tags):
+> [presses Enter for no tags]
+
+✅ Added project 'utility-script' with no tags
+   Path: /Users/you/projects/utility-script
 ```
 
 **Directory Creation:**
