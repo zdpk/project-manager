@@ -158,7 +158,7 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
         }
         InitMode::Load => {
             println!("\n🌐 GitHub integration ready!");
-            println!("💡 Use 'pm load owner/repo' to clone and add repositories");
+            println!("💡 Use 'pm load <owner>/<repo>' to clone and add repositories");
 
             // Optionally prompt for first repository
             let load_repo = handle_inquire_error(inquire::Confirm::new("Would you like to clone a repository now?")
@@ -232,13 +232,13 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
                 println!("\n🎯 Next steps:");
                 println!("  pm add <path>     # Add your first project");
                 println!("  pm scan           # Scan for existing repositories");
-                println!("  pm load owner/repo # Clone from GitHub");
+                println!("  pm load <owner>/<repo> # Clone from GitHub");
             }
             _ => {
                 println!("\n🎯 Next steps:");
                 println!("  pm add <path>     # Add your first project");
                 println!("  pm scan           # Try scanning again");
-                println!("  pm load owner/repo # Clone from GitHub");
+                println!("  pm load <owner>/<repo> # Clone from GitHub");
             }
         }
     }
