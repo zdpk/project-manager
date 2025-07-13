@@ -205,8 +205,7 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
         }
     }
 
-    println!("\n🎉 {} initialized successfully!", APP_NAME.to_uppercase());
-    println!("📖 Use 'pm --help' to see all available commands");
+    println!("\n📖 Use 'pm --help' to see all available commands");
 
     Ok(())
 }
