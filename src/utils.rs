@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use std::process::Command;
 use std::path::Path;
+use std::process::Command;
 
 pub fn get_last_git_commit_time(path: &Path) -> Result<Option<DateTime<Utc>>> {
     if !path.join(".git").exists() {
@@ -33,6 +33,7 @@ pub fn get_last_git_commit_time(path: &Path) -> Result<Option<DateTime<Utc>>> {
     }
 }
 
+#[allow(dead_code)]
 pub fn get_git_remote_url(path: &Path) -> Result<Option<String>> {
     if !path.join(".git").exists() {
         return Ok(None);
@@ -60,6 +61,7 @@ pub fn get_git_remote_url(path: &Path) -> Result<Option<String>> {
     }
 }
 
+#[allow(dead_code)]
 pub fn get_git_current_branch(path: &Path) -> Result<Option<String>> {
     if !path.join(".git").exists() {
         return Ok(None);
@@ -86,6 +88,7 @@ pub fn get_git_current_branch(path: &Path) -> Result<Option<String>> {
     }
 }
 
+#[allow(dead_code)]
 pub fn get_git_status(path: &Path) -> Result<Option<String>> {
     if !path.join(".git").exists() {
         return Ok(None);
@@ -113,52 +116,53 @@ pub fn get_git_status(path: &Path) -> Result<Option<String>> {
     }
 }
 
+#[allow(dead_code)]
 pub fn is_git_repository(path: &Path) -> bool {
     path.join(".git").exists()
 }
 
+#[allow(dead_code)]
 pub fn detect_project_language(path: &Path) -> Option<String> {
     let files = std::fs::read_dir(path).ok()?;
-    let mut language_counts: std::collections::HashMap<&str, u32> = std::collections::HashMap::new();
+    let mut language_counts: std::collections::HashMap<&str, u32> =
+        std::collections::HashMap::new();
 
-    for file in files {
-        if let Ok(entry) = file {
-            if let Some(extension) = entry.path().extension() {
-                if let Some(ext_str) = extension.to_str() {
-                    let language = match ext_str {
-                        "rs" => "Rust",
-                        "js" | "jsx" => "JavaScript",
-                        "ts" | "tsx" => "TypeScript",
-                        "py" => "Python",
-                        "go" => "Go",
-                        "java" => "Java",
-                        "cpp" | "cc" | "cxx" => "C++",
-                        "c" => "C",
-                        "rb" => "Ruby",
-                        "php" => "PHP",
-                        "swift" => "Swift",
-                        "kt" => "Kotlin",
-                        "dart" => "Dart",
-                        "scala" => "Scala",
-                        "clj" => "Clojure",
-                        "hs" => "Haskell",
-                        "ml" => "OCaml",
-                        "fs" => "F#",
-                        "elm" => "Elm",
-                        "ex" | "exs" => "Elixir",
-                        "erl" => "Erlang",
-                        "lua" => "Lua",
-                        "r" => "R",
-                        "jl" => "Julia",
-                        "nim" => "Nim",
-                        "zig" => "Zig",
-                        "v" => "V",
-                        "cr" => "Crystal",
-                        "d" => "D",
-                        _ => continue,
-                    };
-                    *language_counts.entry(language).or_insert(0) += 1;
-                }
+    for entry in files.flatten() {
+        if let Some(extension) = entry.path().extension() {
+            if let Some(ext_str) = extension.to_str() {
+                let language = match ext_str {
+                    "rs" => "Rust",
+                    "js" | "jsx" => "JavaScript",
+                    "ts" | "tsx" => "TypeScript",
+                    "py" => "Python",
+                    "go" => "Go",
+                    "java" => "Java",
+                    "cpp" | "cc" | "cxx" => "C++",
+                    "c" => "C",
+                    "rb" => "Ruby",
+                    "php" => "PHP",
+                    "swift" => "Swift",
+                    "kt" => "Kotlin",
+                    "dart" => "Dart",
+                    "scala" => "Scala",
+                    "clj" => "Clojure",
+                    "hs" => "Haskell",
+                    "ml" => "OCaml",
+                    "fs" => "F#",
+                    "elm" => "Elm",
+                    "ex" | "exs" => "Elixir",
+                    "erl" => "Erlang",
+                    "lua" => "Lua",
+                    "r" => "R",
+                    "jl" => "Julia",
+                    "nim" => "Nim",
+                    "zig" => "Zig",
+                    "v" => "V",
+                    "cr" => "Crystal",
+                    "d" => "D",
+                    _ => continue,
+                };
+                *language_counts.entry(language).or_insert(0) += 1;
             }
         }
     }

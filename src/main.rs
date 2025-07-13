@@ -1,25 +1,25 @@
 use chrono::{DateTime, Utc};
 use clap::{Parser, Subcommand};
-use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use uuid::Uuid;
 
+mod commands;
 mod config;
-mod utils;
-mod tag_commands;
 mod constants;
 mod display;
-mod validation;
 mod error;
-mod commands;
+mod tag_commands;
+mod utils;
+mod validation;
 
-use config::load_config;
-use commands::{init, project, tag, config as config_cmd};
 use commands::config::ExportFormat;
-use error::handle_error;
+use commands::{config as config_cmd, init, project, tag};
+use config::load_config;
 use constants::*;
 use display::display_error;
+use error::handle_error;
 
 fn handle_config_error(e: anyhow::Error) -> ! {
     if e.to_string().contains("Configuration file not found") {
@@ -50,7 +50,7 @@ enum Commands {
         #[command(subcommand)]
         action: TagAction,
     },
-    
+
     /// Manage configuration
     #[command(subcommand, alias = "c")]
     Config(ConfigCommands),
@@ -60,28 +60,28 @@ enum Commands {
         #[arg(long, value_enum)]
         mode: Option<InitMode>,
     },
-    
+
     /// Scan for Git repositories and add them to PM
     Scan {
         /// Directory to scan (defaults to ~/workspace)
         #[arg(short, long)]
         directory: Option<PathBuf>,
-        
+
         /// Show all repositories found, don't prompt for selection
         #[arg(long)]
         show_all: bool,
     },
-    
+
     /// Load (clone) a repository from GitHub
     Load {
         /// Repository in format owner/repo
         repo: String,
-        
+
         /// Target directory (defaults to <root_dir>/<owner>/<repo>)
         #[arg(short, long)]
         directory: Option<PathBuf>,
     },
-    
+
     /// Add a new project to manage
     Add {
         /// Path to the project directory
@@ -96,7 +96,7 @@ enum Commands {
         #[arg(short, long)]
         description: Option<String>,
     },
-    
+
     /// List managed projects  
     #[command(alias = "ls")]
     List {
@@ -120,7 +120,7 @@ enum Commands {
         #[arg(short = 'd', long)]
         detailed: bool,
     },
-    
+
     /// Switch to a project directory and open editor
     #[command(alias = "s")]
     Switch {
@@ -213,22 +213,22 @@ enum TagAction {
 enum ConfigCommands {
     /// Show current configuration
     Show {},
-    
+
     /// Edit configuration file with default editor
     Edit {},
-    
+
     /// Validate configuration file
     Validate {},
-    
+
     /// Reset configuration to defaults
     Reset {},
-    
+
     /// Get a specific configuration value
     Get {
         /// Configuration key (supports dot notation like 'settings.auto_open_editor')
         key: String,
     },
-    
+
     /// Set a configuration value
     Set {
         /// Configuration key (supports dot notation like 'settings.auto_open_editor')
@@ -236,25 +236,25 @@ enum ConfigCommands {
         /// New value
         value: String,
     },
-    
+
     /// List all available configuration keys
     List {},
-    
+
     /// Backup and restore operations
     #[command(subcommand)]
     Backup(BackupCommands),
-    
+
     /// Template operations
     #[command(subcommand)]
     Template(TemplateCommands),
-    
+
     /// Interactive configuration setup
     Setup {
         /// Use quick setup with defaults
         #[arg(long)]
         quick: bool,
     },
-    
+
     /// Export configuration
     Export {
         /// Output format
@@ -264,7 +264,7 @@ enum ConfigCommands {
         #[arg(long)]
         file: Option<PathBuf>,
     },
-    
+
     /// Import configuration from file
     Import {
         /// Input file path
@@ -273,13 +273,13 @@ enum ConfigCommands {
         #[arg(long)]
         force: bool,
     },
-    
+
     /// Show differences between current config and backup
     Diff {
         /// Backup name to compare with (defaults to latest)
         backup: Option<String>,
     },
-    
+
     /// Show configuration change history
     History {
         /// Limit number of entries
@@ -348,7 +348,10 @@ pub struct Project {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, JsonSchema)]
-#[schemars(title = "Machine Metadata", description = "Machine-specific project metadata")]
+#[schemars(
+    title = "Machine Metadata",
+    description = "Machine-specific project metadata"
+)]
 pub struct MachineMetadata {
     pub last_accessed: std::collections::HashMap<Uuid, DateTime<Utc>>,
     pub access_counts: std::collections::HashMap<Uuid, u32>,
@@ -366,46 +369,62 @@ pub enum InitMode {
     None,
 }
 
-
-
-
-
-
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Add { path, name, tags, description } => {
+        Commands::Add {
+            path,
+            name,
+            tags,
+            description,
+        } => {
             if let Err(e) = project::handle_add(path, name, tags, description).await {
                 handle_config_error(e);
             }
         }
-        Commands::List { tags, tags_any, recent, limit, detailed } => {
+        Commands::List {
+            tags,
+            tags_any,
+            recent,
+            limit,
+            detailed,
+        } => {
             if let Err(e) = project::handle_list(tags, tags_any, recent, limit, *detailed).await {
                 handle_config_error(e);
             }
         }
-        Commands::Switch { name, no_editor } => {
-            match load_config().await {
-                Ok(mut config) => {
-                    if let Err(e) = project::handle_switch(&mut config, name, *no_editor).await {
-                        handle_error(e, ERROR_PROJECT_NOT_FOUND);
-                    }
-                }
-                Err(e) => {
-                    handle_config_error(e);
+        Commands::Switch { name, no_editor } => match load_config().await {
+            Ok(mut config) => {
+                if let Err(e) = project::handle_switch(&mut config, name, *no_editor).await {
+                    handle_error(e, ERROR_PROJECT_NOT_FOUND);
                 }
             }
-        }
+            Err(e) => {
+                handle_config_error(e);
+            }
+        },
         Commands::Project(project_command) => match project_command {
-            ProjectCommands::Add { path, name, tags, description } => {
+            ProjectCommands::Add {
+                path,
+                name,
+                tags,
+                description,
+            } => {
                 if let Err(e) = project::handle_add(path, name, tags, description).await {
                     handle_config_error(e);
                 }
             }
-            ProjectCommands::List { tags, tags_any, recent, limit, detailed } => {
-                if let Err(e) = project::handle_list(tags, tags_any, recent, limit, *detailed).await {
+            ProjectCommands::List {
+                tags,
+                tags_any,
+                recent,
+                limit,
+                detailed,
+            } => {
+                if let Err(e) = project::handle_list(tags, tags_any, recent, limit, *detailed).await
+                {
                     handle_config_error(e);
                 }
             }
@@ -501,7 +520,7 @@ async fn main() {
                         handle_error(e, "Failed to delete backup");
                     }
                 }
-            }
+            },
             ConfigCommands::Template(template_command) => match template_command {
                 TemplateCommands::List {} => {
                     if let Err(e) = config_cmd::handle_template_list().await {
@@ -514,7 +533,9 @@ async fn main() {
                     }
                 }
                 TemplateCommands::Save { name, description } => {
-                    if let Err(e) = config_cmd::handle_template_save(name, description.as_deref()).await {
+                    if let Err(e) =
+                        config_cmd::handle_template_save(name, description.as_deref()).await
+                    {
                         handle_error(e, "Failed to save template");
                     }
                 }
@@ -523,7 +544,7 @@ async fn main() {
                         handle_error(e, "Failed to delete template");
                     }
                 }
-            }
+            },
             ConfigCommands::Setup { quick } => {
                 if let Err(e) = config_cmd::handle_setup(*quick).await {
                     handle_error(e, "Failed to setup config");
@@ -555,7 +576,10 @@ async fn main() {
                 handle_error(e, "Failed to initialize PM");
             }
         }
-        Commands::Scan { directory, show_all } => {
+        Commands::Scan {
+            directory,
+            show_all,
+        } => {
             if let Err(e) = project::handle_scan(directory.as_deref(), *show_all).await {
                 handle_config_error(e);
             }

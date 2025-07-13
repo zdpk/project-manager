@@ -26,7 +26,10 @@ pub async fn remove_tags(project_name: &str, tags: &[String], config: &mut Confi
             project.updated_at = Utc::now();
             println!("✓ Tags removed from project '{}'", project_name);
         } else {
-            println!("No matching tags found to remove from project '{}'.", project_name);
+            println!(
+                "No matching tags found to remove from project '{}'.",
+                project_name
+            );
         }
     } else {
         println!("❌ Project not found: {}", project_name);

@@ -1,11 +1,11 @@
-use chrono::{DateTime, Utc};
 use crate::constants::*;
 use crate::Project;
+use chrono::{DateTime, Utc};
 
 pub fn format_relative_time(time: DateTime<Utc>) -> String {
     let now = Utc::now();
     let duration = now.signed_duration_since(time);
-    
+
     if duration.num_minutes() < 1 {
         "방금 전".to_string()
     } else if duration.num_minutes() < 60 {
@@ -43,19 +43,19 @@ pub fn display_project_simple(project: &Project, access_time: Option<DateTime<Ut
     } else {
         format!("[{}]", project.tags.join(", "))
     };
-    
+
     let last_updated_display = if let Some(git_time) = project.git_updated_at {
         format!("Git: {}", format_relative_time(git_time))
     } else {
         format!("PM: {}", format_relative_time(project.updated_at))
     };
-    
+
     let access_display = if let Some(access_time) = access_time {
         format!(" (접근: {})", format_relative_time(access_time))
     } else {
         "".to_string()
     };
-    
+
     println!(
         "{:<width_name$} {:<width_tags$} {:<width_time$}{}",
         project.name,
@@ -68,7 +68,11 @@ pub fn display_project_simple(project: &Project, access_time: Option<DateTime<Ut
     );
 }
 
-pub fn display_project_detailed(project: &Project, access_time: Option<DateTime<Utc>>, access_count: u32) {
+pub fn display_project_detailed(
+    project: &Project,
+    access_time: Option<DateTime<Utc>>,
+    access_count: u32,
+) {
     println!("\n{}", project.name);
     if !project.tags.is_empty() {
         println!("  Tags: {}", project.tags.join(", "));
@@ -78,13 +82,27 @@ pub fn display_project_detailed(project: &Project, access_time: Option<DateTime<
         println!("  Description: {}", desc);
     }
     println!("  ID: {}", project.id);
-    println!("  Created: {}", project.created_at.format("%Y-%m-%d %H:%M:%S"));
-    println!("  Updated: {}", project.updated_at.format("%Y-%m-%d %H:%M:%S"));
+    println!(
+        "  Created: {}",
+        project.created_at.format("%Y-%m-%d %H:%M:%S")
+    );
+    println!(
+        "  Updated: {}",
+        project.updated_at.format("%Y-%m-%d %H:%M:%S")
+    );
     if let Some(git_time) = project.git_updated_at {
-        println!("  Git Updated: {} ({})", git_time.format("%Y-%m-%d %H:%M:%S"), format_relative_time(git_time));
+        println!(
+            "  Git Updated: {} ({})",
+            git_time.format("%Y-%m-%d %H:%M:%S"),
+            format_relative_time(git_time)
+        );
     }
     if let Some(access_time) = access_time {
-        println!("  Last Accessed: {} ({})", access_time.format("%Y-%m-%d %H:%M:%S"), format_relative_time(access_time));
+        println!(
+            "  Last Accessed: {} ({})",
+            access_time.format("%Y-%m-%d %H:%M:%S"),
+            format_relative_time(access_time)
+        );
     }
     if access_count > 0 {
         println!("  Access Count: {}", access_count);
@@ -108,10 +126,14 @@ pub fn display_no_matches() {
     println!("  - Different tags: pm ls --tags-any frontend,backend");
 }
 
-pub fn display_switch_info(project_name: &str, access_count: u32, last_accessed: Option<DateTime<Utc>>) {
+pub fn display_switch_info(
+    project_name: &str,
+    access_count: u32,
+    last_accessed: Option<DateTime<Utc>>,
+) {
     println!("🔄 Switching to project: {}", project_name);
     println!("📊 Access count: {} times", access_count);
-    
+
     if let Some(last_time) = last_accessed {
         println!("⏰ Last accessed: {}", format_relative_time(last_time));
     }
@@ -119,7 +141,7 @@ pub fn display_switch_info(project_name: &str, access_count: u32, last_accessed:
 
 pub fn display_switch_success(project_path: &std::path::Path, no_editor: bool) {
     println!("📂 Working directory: {}", project_path.display());
-    
+
     if no_editor {
         println!("✅ Project switched (editor not opened)");
     } else {
@@ -154,6 +176,7 @@ pub fn display_info(message: &str) {
     println!("💡 {}", message);
 }
 
+#[allow(dead_code)]
 pub fn display_project_added(project_name: &str, tags: &[String]) {
     println!("✅ Project '{}' added successfully!", project_name);
     if !tags.is_empty() {
@@ -162,14 +185,21 @@ pub fn display_project_added(project_name: &str, tags: &[String]) {
 }
 
 pub fn display_editor_error(error: &str) {
-    eprintln!("❌ Failed to execute editor '{}': {}", DEFAULT_EDITOR, error);
+    eprintln!(
+        "❌ Failed to execute editor '{}': {}",
+        DEFAULT_EDITOR, error
+    );
     eprintln!("\n💡 Suggestions:");
     eprintln!("  - {}", SUGGESTION_INSTALL_HELIX);
     eprintln!("  - {}", SUGGESTION_USE_NO_EDITOR);
     eprintln!("  - {}", SUGGESTION_SET_EDITOR_ENV);
 }
 
-pub fn display_init_success(github_username: &str, projects_root: &std::path::Path, config_path: &std::path::Path) {
+pub fn display_init_success(
+    github_username: &str,
+    projects_root: &std::path::Path,
+    config_path: &std::path::Path,
+) {
     println!("\n✅ {}", SUCCESS_PM_INITIALIZED);
     println!("👤 GitHub username: {}", github_username);
     println!("📁 Projects root: {}", projects_root.display());
