@@ -14,6 +14,8 @@ mod tag_commands;
 mod utils;
 mod validation;
 
+use error::PmError;
+
 use commands::config::ExportFormat;
 use commands::{config as config_cmd, init, project, tag};
 use config::load_config;
@@ -80,6 +82,13 @@ enum Commands {
         /// Target directory (defaults to <root_dir>/<owner>/<repo>)
         #[arg(short, long)]
         directory: Option<PathBuf>,
+    },
+
+    /// Browse and select repositories from GitHub
+    Browse {
+        /// GitHub username (defaults to configured username)
+        #[arg(short, long)]
+        username: Option<String>,
     },
 
     /// Add a new project to manage
@@ -586,6 +595,32 @@ async fn main() {
         }
         Commands::Load { repo, directory } => {
             if let Err(e) = project::handle_load(repo, directory.as_deref()).await {
+                handle_config_error(e);
+            }
+        }
+        Commands::Browse { username } => {
+            let config = match load_config().await {
+                Ok(config) => config,
+                Err(e) => {
+                    handle_config_error(e);
+                }
+            };
+
+            let target_username = username.as_deref().unwrap_or(&config.github_username);
+            
+            if target_username.is_empty() {
+                display_error("GitHub username not configured", "Run 'pm init' to configure GitHub integration");
+                std::process::exit(1);
+            }
+
+            if let Err(e) = project::handle_github_repo_selection(target_username).await {
+                // Check if this is a user cancellation (Ctrl-C)
+                if let Some(pm_error) = e.downcast_ref::<PmError>() {
+                    if matches!(pm_error, PmError::OperationCancelled) {
+                        // Gracefully exit on cancellation
+                        std::process::exit(0);
+                    }
+                }
                 handle_config_error(e);
             }
         }
