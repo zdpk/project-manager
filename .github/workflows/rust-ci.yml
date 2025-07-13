@@ -1,10 +1,13 @@
 name: Rust CI
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:  # Manual execution only
+  # Temporarily disabled: 2025-01-13
+  # Will be re-enabled after development completion
+  # push:
+  #   branches: [ main, develop ]
+  # pull_request:
+  #   branches: [ main ]
 
 env:
   CARGO_TERM_COLOR: always
