@@ -17,6 +17,7 @@ pub enum PmError {
     TagOperationFailed,
     ValidationFailed(String),
     GitOperationFailed,
+    OperationCancelled,
 }
 
 impl fmt::Display for PmError {
@@ -36,6 +37,7 @@ impl fmt::Display for PmError {
             PmError::TagOperationFailed => write!(f, "Tag operation failed"),
             PmError::ValidationFailed(msg) => write!(f, "Validation failed: {}", msg),
             PmError::GitOperationFailed => write!(f, "Git operation failed"),
+            PmError::OperationCancelled => write!(f, "Operation cancelled by user"),
         }
     }
 }
@@ -45,6 +47,23 @@ impl std::error::Error for PmError {}
 pub fn handle_error(error: anyhow::Error, context: &str) -> ! {
     eprintln!("❌ {}: {}", context, error);
     std::process::exit(1);
+}
+
+/// Handle inquire errors, specifically checking for interruption (Ctrl-C)
+/// Returns true if the operation should continue, false if cancelled
+pub fn handle_inquire_error<T>(result: Result<T, inquire::InquireError>) -> anyhow::Result<T> {
+    match result {
+        Ok(value) => Ok(value),
+        Err(inquire::InquireError::OperationCanceled) => {
+            println!("\n💭 Operation cancelled");
+            Err(PmError::OperationCancelled.into())
+        }
+        Err(inquire::InquireError::OperationInterrupted) => {
+            println!("\n💭 Operation cancelled");
+            Err(PmError::OperationCancelled.into())
+        }
+        Err(e) => Err(e.into()),
+    }
 }
 
 #[allow(dead_code)]

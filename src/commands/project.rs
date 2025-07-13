@@ -1,7 +1,7 @@
 use crate::config::{load_config, save_config, Config};
 use crate::constants::*;
 use crate::display::*;
-use crate::error::PmError;
+use crate::error::{handle_inquire_error, PmError};
 use crate::utils::get_last_git_commit_time;
 use crate::validation::{parse_time_duration, validate_path};
 use crate::Project;
@@ -37,13 +37,12 @@ pub async fn handle_add(
     // Check if directory exists
     let absolute_path = if !resolved_path.exists() {
         // Directory doesn't exist - prompt user to create it
-        match Confirm::new(&format!(
+        match handle_inquire_error(Confirm::new(&format!(
             "Directory '{}' doesn't exist. Create it?",
             resolved_path.display()
         ))
         .with_default(true)
-        .prompt()
-        {
+        .prompt()) {
             Ok(create_dir) => {
                 if !create_dir {
                     println!("❌ Directory creation cancelled. Project not added.");
@@ -51,8 +50,7 @@ pub async fn handle_add(
                 }
             }
             Err(_) => {
-                // Non-interactive environment - create directory automatically
-                println!("ℹ️  Non-interactive mode: Creating directory automatically");
+                return Ok(()); // User cancelled with Ctrl-C or other error
             }
         }
 
@@ -535,7 +533,7 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<()>
         return Ok(());
     }
 
-    let selection = MultiSelect::new("Select repositories to add to PM:", options).prompt()?;
+    let selection = handle_inquire_error(MultiSelect::new("Select repositories to add to PM:", options).prompt())?;
 
     if selection.is_empty() {
         println!("❌ No repositories selected");

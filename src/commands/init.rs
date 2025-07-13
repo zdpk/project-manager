@@ -2,7 +2,7 @@ use crate::commands::project;
 use crate::config::{get_config_path, save_config, Config, ConfigSettings};
 use crate::constants::*;
 use crate::display::*;
-use crate::error::PmError;
+use crate::error::{handle_inquire_error, PmError};
 use crate::InitMode;
 use anyhow::Result;
 use inquire::{Confirm, Select, Text};
@@ -16,7 +16,7 @@ fn interactive_mode_selection() -> Result<InitMode> {
         "⚙️ Manual setup only",
     ];
 
-    let selected = Select::new("Choose your setup preference:", mode_options).prompt()?;
+    let selected = handle_inquire_error(Select::new("Choose your setup preference:", mode_options).prompt())?;
 
     // Map the selected option to the corresponding mode
     match selected {
@@ -55,9 +55,9 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
     };
 
     // Step 1: GitHub username configuration
-    let github_username = Text::new("GitHub username:")
+    let github_username = handle_inquire_error(Text::new("GitHub username:")
         .with_help_message("Used for repository cloning and GitHub integration (required)")
-        .prompt()?;
+        .prompt())?;
 
     // Step 2: Projects directory configuration
     let projects_root_dir = {
@@ -65,10 +65,10 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
             .map(|home| home.join("workspace"))
             .unwrap_or_else(|| PathBuf::from("~/workspace"));
 
-        let dir_input = Text::new("Projects root directory:")
+        let dir_input = handle_inquire_error(Text::new("Projects root directory:")
             .with_default(&default_workspace.to_string_lossy())
             .with_help_message("Where your projects will be stored (press Enter for default)")
-            .prompt()?;
+            .prompt())?;
 
         PathBuf::from(shellexpand::tilde(&dir_input).to_string())
     };
@@ -84,7 +84,7 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
         "Other (custom command)",
     ];
 
-    let selected_editor = Select::new("Choose your preferred editor:", editor_options).prompt()?;
+    let selected_editor = handle_inquire_error(Select::new("Choose your preferred editor:", editor_options).prompt())?;
 
     let editor = match selected_editor {
         "code (Visual Studio Code)" => "code".to_string(),
@@ -93,20 +93,20 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
         "vim (Vim)" => "vim".to_string(),
         "nano (Nano)" => "nano".to_string(),
         "emacs (Emacs)" => "emacs".to_string(),
-        "Other (custom command)" => Text::new("Enter custom editor command:")
+        "Other (custom command)" => handle_inquire_error(Text::new("Enter custom editor command:")
             .with_help_message("e.g., 'subl', 'atom', 'idea'")
-            .prompt()?,
+            .prompt())?,
         _ => "code".to_string(), // fallback
     };
 
     // Step 4: Additional settings
-    let auto_open_editor = Confirm::new("Automatically open editor when switching to projects?")
+    let auto_open_editor = handle_inquire_error(Confirm::new("Automatically open editor when switching to projects?")
         .with_default(true)
-        .prompt()?;
+        .prompt())?;
 
-    let show_git_status = Confirm::new("Show git status in project listings?")
+    let show_git_status = handle_inquire_error(Confirm::new("Show git status in project listings?")
         .with_default(true)
-        .prompt()?;
+        .prompt())?;
 
     // Create the projects root directory if it doesn't exist
     if !projects_root_dir.exists() {
@@ -153,15 +153,16 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
             println!("💡 Use 'pm load owner/repo' to clone and add repositories");
 
             // Optionally prompt for first repository
-            let load_repo = inquire::Confirm::new("Would you like to clone a repository now?")
+            let load_repo = handle_inquire_error(inquire::Confirm::new("Would you like to clone a repository now?")
                 .with_default(false)
-                .prompt()
+                .prompt())
                 .unwrap_or(false);
 
             if load_repo {
-                let repo = Text::new("Repository (owner/repo format):")
+                let repo = handle_inquire_error(Text::new("Repository (owner/repo format):")
                     .with_help_message("e.g., microsoft/vscode or your-username/my-project")
-                    .prompt()?;
+                    .prompt()
+)?;
 
                 if let Err(e) = project::handle_load(&repo, None).await {
                     display_warning(&format!("Failed to load repository: {}", e));
@@ -178,15 +179,16 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
 
             // Then offer GitHub integration
             println!("\n🌐 GitHub integration ready!");
-            let load_repo = inquire::Confirm::new("Would you like to clone a repository now?")
+            let load_repo = handle_inquire_error(inquire::Confirm::new("Would you like to clone a repository now?")
                 .with_default(false)
-                .prompt()
+                .prompt())
                 .unwrap_or(false);
 
             if load_repo {
-                let repo = Text::new("Repository (owner/repo format):")
+                let repo = handle_inquire_error(Text::new("Repository (owner/repo format):")
                     .with_help_message("e.g., microsoft/vscode or your-username/my-project")
-                    .prompt()?;
+                    .prompt()
+)?;
 
                 if let Err(e) = project::handle_load(&repo, None).await {
                     display_warning(&format!("Failed to load repository: {}", e));
