@@ -4,11 +4,15 @@ A fast, terminal-based project management CLI tool written in Rust. PM helps dev
 
 ## Features
 
-- **Fast project switching**: Switch between projects in under 1 second
-- **Automatic project discovery**: Smart detection of Git repositories and programming languages
-- **Flexible tagging system**: Organize projects with custom tags
-- **Integration with Helix editor**: Seamless editor integration
-- **Native performance**: Fast native binary for macOS Apple Silicon
+- **Interactive Setup**: Guided initialization with auto-detection and GitHub integration
+- **Fast Project Switching**: Switch between projects in under 1 second with automatic editor launch
+- **Smart Project Discovery**: Automatic detection of Git repositories and programming languages
+- **Flexible Tagging System**: Organize projects with custom tags for easy filtering
+- **GitHub Integration**: Clone and manage repositories directly from GitHub
+- **Advanced Configuration**: Backup, templates, export/import, and validation
+- **Machine-Specific Metadata**: Track project access and usage across different machines
+- **Cross-Platform Editor Support**: Works with VS Code, Helix, Vim, Neovim, and more
+- **Rich CLI Interface**: Colorful output with progress indicators and interactive prompts
 
 ## Installation
 
@@ -38,7 +42,6 @@ sudo mv pm /usr/local/bin/
 
 - Rust 1.70+ (for building from source)
 - Git
-- Helix editor (recommended) or any text editor
 
 ```bash
 # Clone the repository
@@ -55,52 +58,266 @@ cargo install --path .
 ## Quick Start
 
 ```bash
-# Initialize PM
+# Interactive initialization
 pm init
 
 # Add a project
-pm add ~/workspace/my-project
+pm add ~/workspace/my-project --tags rust,backend
 
-# List projects
+# List all projects
 pm ls
 
-# Switch to a project
+# List projects with filters
+pm ls --tags rust --recent 7d --limit 10
+
+# Switch to a project (opens editor automatically)
 pm s my-project
+
+# Switch without opening editor
+pm s my-project --no-editor
 ```
 
-### Development
+## Command Reference
+
+### Project Management
 
 ```bash
-# Run in development mode
-cargo run -- <command>
+# Add projects
+pm add <path>                           # Add current or specified directory
+pm add . --name "My Project" --tags web,frontend
+pm add ~/code/api --description "REST API service"
 
-# Run tests
-cargo test
+# List projects
+pm ls                                   # List all projects
+pm ls --tags rust,backend              # Filter by tags (AND logic)
+pm ls --tags-any frontend,web          # Filter by tags (OR logic)
+pm ls --recent 7d                       # Show recent activity (7 days)
+pm ls --detailed                        # Show detailed information
 
-# Build optimized release
-cargo build --release
+# Switch projects
+pm switch <name>                        # Switch and open editor
+pm s <name> --no-editor                # Switch without editor
+
+# Scan for repositories
+pm scan                                 # Scan default workspace
+pm scan ~/Development                   # Scan specific directory
+pm scan --show-all                      # Show all found repositories
 ```
+
+### GitHub Integration
+
+```bash
+# Clone and add repositories
+pm load microsoft/vscode                # Clone to default location
+pm load owner/repo --directory ~/custom # Clone to custom directory
+```
+
+### Tag Management
+
+```bash
+# Manage tags
+pm tag add <project> <tags...>         # Add tags to project
+pm tag remove <project> <tags...>      # Remove tags from project
+pm tag list                            # List all available tags
+pm tag show [project]                  # Show tags for project
+```
+
+### Configuration
+
+```bash
+# View and edit configuration
+pm config show                         # Show current configuration
+pm config edit                         # Edit in your preferred editor
+pm config validate                     # Validate configuration file
+
+# Get and set values
+pm config get editor                    # Get specific value
+pm config set editor code              # Set specific value
+pm config list                         # List all available keys
+
+# Backup and restore
+pm config backup create [name]         # Create configuration backup
+pm config backup restore <name>        # Restore from backup
+pm config backup list                  # List available backups
+pm config backup delete <name>         # Delete backup
+
+# Templates
+pm config template list                # List available templates
+pm config template apply <name>        # Apply a template
+pm config template save <name>         # Save current config as template
+
+# Import/Export
+pm config export --format yaml         # Export configuration
+pm config import <file>                # Import configuration
+pm config diff [backup]                # Show configuration differences
+pm config history --limit 10           # Show configuration history
+```
+
+## Configuration
+
+PM stores its configuration in `~/.config/pm/config.yml`. The configuration includes:
+
+- **GitHub username**: For repository cloning
+- **Projects root directory**: Where your projects are located
+- **Editor preference**: Your preferred code editor
+- **Application settings**: Auto-open editor, show git status, etc.
+- **Project data**: All managed projects and their metadata
+- **Machine metadata**: Access tracking across different machines
+
+### Example Configuration
+
+```yaml
+version: "1.0"
+github_username: "your-username"
+projects_root_dir: "~/workspace"
+editor: "code"
+settings:
+  auto_open_editor: true
+  show_git_status: true
+  recent_projects_limit: 20
+```
+
+## Advanced Usage
+
+### Filtering and Search
+
+```bash
+# Complex filtering
+pm ls --tags rust,cli --recent 30d --limit 5
+
+# Find projects by pattern
+pm s my-proj    # Suggests similar project names if not found
+```
+
+### Workflow Integration
+
+```bash
+# Integration with other tools
+pm s my-project && npm start
+pm s api-service && docker-compose up -d
+
+# Useful aliases
+alias pml="pm ls"
+alias pms="pm switch"
+alias pma="pm add ."
+```
+
+### Multiple Machine Sync
+
+PM automatically tracks which machine you last accessed each project on, making it easy to work across multiple development environments.
 
 ## Project Structure
 
 ```
 project-manager/
-├── src/                 # Source code
-├── tests/              # Test files
-├── docs/               # Documentation
-├── .github/            # GitHub workflows
-├── .gitignore         # Git ignore patterns
-└── README.md          # This file
+├── src/
+│   ├── commands/           # Command implementations
+│   │   ├── config.rs      # Configuration management
+│   │   ├── init.rs        # Interactive initialization
+│   │   ├── project.rs     # Project operations
+│   │   └── tag.rs         # Tag management
+│   ├── config.rs          # Configuration types and loading
+│   ├── display.rs         # Output formatting and colors
+│   ├── validation.rs      # Input validation
+│   ├── utils.rs           # Utility functions
+│   └── main.rs            # CLI entry point
+├── docs/                  # Comprehensive documentation
+│   ├── ARCHITECTURE.md    # System architecture
+│   ├── CLI_USAGE.md       # Detailed CLI guide
+│   └── COMMANDS.md        # Command reference
+├── schemas/               # JSON schemas for validation
+├── script/                # Installation scripts
+├── .github/workflows/     # CI/CD workflows
+└── target/                # Build artifacts
+```
+
+## Development
+
+### Running from Source
+
+```bash
+# Run in development mode
+cargo run -- <command>
+
+# Examples
+cargo run -- init
+cargo run -- ls --detailed
+cargo run -- add . --tags rust,cli
+```
+
+### Testing
+
+```bash
+# Run tests
+cargo test
+
+# Run tests with output
+cargo test -- --nocapture
+
+# Run specific test
+cargo test test_name
+```
+
+### Building
+
+```bash
+# Debug build
+cargo build
+
+# Optimized release build
+cargo build --release
+
+# Check code formatting
+cargo fmt --all -- --check
+
+# Run clippy lints
+cargo clippy --all-targets --all-features -- -D warnings
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**PM not initialized error**:
+```bash
+pm init  # Run the initialization wizard
+```
+
+**Project not found**:
+```bash
+pm ls    # List all projects to see available names
+```
+
+**Editor not opening**:
+```bash
+pm config set editor your-editor  # Set your preferred editor
+pm s project --no-editor          # Skip editor launch
+```
+
+**Configuration issues**:
+```bash
+pm config validate  # Check configuration validity
+pm config edit       # Manually edit configuration
 ```
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
-4. Run tests
-5. Submit a pull request
+4. Run tests (`cargo test`)
+5. Check formatting (`cargo fmt --all -- --check`)
+6. Run clippy (`cargo clippy --all-targets --all-features -- -D warnings`)
+7. Commit your changes (`git commit -m 'Add amazing feature'`)
+8. Push to the branch (`git push origin feature/amazing-feature`)
+9. Open a Pull Request
 
 ## License
 
-MIT License
+MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Version
+
+Current version: 0.1.1
+
+Built with ❤️ in Rust
