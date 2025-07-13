@@ -1,6 +1,7 @@
 use std::fmt;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum PmError {
     ConfigLoadFailed,
     ConfigSaveFailed,
@@ -46,6 +47,7 @@ pub fn handle_error(error: anyhow::Error, context: &str) -> ! {
     std::process::exit(1);
 }
 
+#[allow(dead_code)]
 pub trait ErrorContext<T> {
     fn with_pm_context(self, context: &str) -> Result<T, anyhow::Error>;
 }

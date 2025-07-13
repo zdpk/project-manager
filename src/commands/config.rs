@@ -1,14 +1,10 @@
 use crate::config::{get_config_path, load_config, save_config, Config};
-use crate::constants::*;
-use crate::display::*;
-use crate::error::PmError;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use colored::*;
 use inquire::{Confirm, Select, Text};
 use serde::{Deserialize, Serialize};
 use serde_yaml::Value;
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -322,7 +318,7 @@ pub async fn handle_set(key: &str, value: &str) -> Result<()> {
 
     // Get current value for comparison
     let old_value = get_nested_value(&config_value, &path_segments)
-        .map(|v| format_value_for_display(v))
+        .map(format_value_for_display)
         .unwrap_or_else(|| "not set".to_string());
 
     // Parse and validate the new value
@@ -378,6 +374,7 @@ pub async fn handle_list() -> Result<()> {
 
 // Helper functions
 
+#[allow(clippy::format_in_format_args)]
 fn print_config_row(label: &str, value: &str, max_width: usize) {
     // Remove ANSI color codes for length calculation
     let clean_value = strip_ansi_codes(value);
@@ -528,7 +525,7 @@ fn list_config_key(config_value: &Value, key: &str, type_name: &str) {
     let value = get_nested_value(config_value, &path_segments);
 
     let value_str = value
-        .map(|v| format_value_for_display(v))
+        .map(format_value_for_display)
         .unwrap_or_else(|| "not set".to_string());
 
     println!(
@@ -544,6 +541,7 @@ fn levenshtein_distance(s1: &str, s2: &str) -> usize {
     let len2 = s2.chars().count();
     let mut matrix = vec![vec![0; len2 + 1]; len1 + 1];
 
+    #[allow(clippy::needless_range_loop)]
     for i in 0..=len1 {
         matrix[i][0] = i;
     }

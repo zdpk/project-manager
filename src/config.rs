@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::fs;
 use uuid::Uuid;
 
@@ -195,16 +195,13 @@ impl Config {
         self.projects.values_mut().find(|p| p.name == name)
     }
 
-    pub fn find_project_by_path(&self, path: &PathBuf) -> Option<&Project> {
+    pub fn find_project_by_path(&self, path: &Path) -> Option<&Project> {
         self.projects.values().find(|p| path.starts_with(&p.path))
     }
 
     pub fn record_project_access(&mut self, project_id: Uuid) {
         let machine_id = get_machine_id();
-        let metadata = self
-            .machine_metadata
-            .entry(machine_id)
-            .or_insert_with(MachineMetadata::default);
+        let metadata = self.machine_metadata.entry(machine_id).or_default();
 
         // Update last accessed time
         metadata.last_accessed.insert(project_id, Utc::now());
@@ -230,6 +227,7 @@ impl Config {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_total_access_count(&self, project_id: Uuid) -> u32 {
         self.machine_metadata
             .values()

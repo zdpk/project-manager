@@ -1,9 +1,9 @@
 use crate::constants::*;
 use anyhow::{Context, Result};
 use chrono::Duration;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-pub fn validate_path(path: &PathBuf) -> Result<PathBuf> {
+pub fn validate_path(path: &Path) -> Result<PathBuf> {
     if !path.exists() {
         anyhow::bail!(
             "Path does not exist: {}\n\n💡 Suggestions:\n  - {}\n  - Create the directory first: mkdir -p {}",
@@ -58,6 +58,7 @@ pub fn parse_time_duration(duration_str: &str) -> Result<Duration, String> {
     }
 }
 
+#[allow(dead_code)]
 pub fn validate_project_name(name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("Project name cannot be empty".to_string());
@@ -76,6 +77,7 @@ pub fn validate_project_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn validate_tags(tags: &[String]) -> Result<(), String> {
     for tag in tags {
         if tag.is_empty() {

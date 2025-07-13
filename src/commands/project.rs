@@ -17,6 +17,9 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 use walkdir::WalkDir;
 
+// Type alias for complex project data tuple
+type ProjectData = (Project, Option<chrono::DateTime<chrono::Utc>>, u32);
+
 pub async fn handle_add(
     path: &PathBuf,
     name: &Option<String>,
@@ -235,7 +238,7 @@ pub async fn handle_switch(config: &mut Config, name: &str, no_editor: bool) -> 
         }
 
         // Save config with updated access tracking
-        if let Err(e) = save_config(&config).await {
+        if let Err(e) = save_config(config).await {
             display_warning(&format!("Failed to save access tracking: {}", e));
             // Continue anyway, don't fail the switch operation
         }
@@ -260,7 +263,7 @@ pub async fn handle_switch(config: &mut Config, name: &str, no_editor: bool) -> 
     } else {
         display_error(ERROR_PROJECT_NOT_FOUND, &format!("'{}'", name));
 
-        let suggestions = suggest_similar_projects(&config, name);
+        let suggestions = suggest_similar_projects(config, name);
         display_suggestions(&suggestions);
 
         Err(PmError::ProjectNotFound.into())
@@ -279,7 +282,7 @@ fn suggest_similar_projects(config: &Config, target: &str) -> Vec<String> {
                 || name.chars().take(3).collect::<String>().to_lowercase()
                     == target.chars().take(3).collect::<String>().to_lowercase()
         })
-        .map(|s| s.clone())
+        .cloned()
         .collect()
 }
 
@@ -316,8 +319,8 @@ fn get_filtered_project_data(
     tags: &[String],
     tags_any: &[String],
     recent: &Option<String>,
-) -> Result<Vec<(Project, Option<chrono::DateTime<chrono::Utc>>, u32)>> {
-    let mut project_data: Vec<(Project, Option<chrono::DateTime<chrono::Utc>>, u32)> = config
+) -> Result<Vec<ProjectData>> {
+    let mut project_data: Vec<ProjectData> = config
         .projects
         .values()
         .filter(|project| {

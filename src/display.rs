@@ -176,6 +176,7 @@ pub fn display_info(message: &str) {
     println!("💡 {}", message);
 }
 
+#[allow(dead_code)]
 pub fn display_project_added(project_name: &str, tags: &[String]) {
     println!("✅ Project '{}' added successfully!", project_name);
     if !tags.is_empty() {
