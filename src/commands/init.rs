@@ -182,11 +182,16 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
                             // Check if this is a user cancellation (Ctrl-C)
                             if let Some(pm_error) = e.downcast_ref::<PmError>() {
                                 if matches!(pm_error, PmError::OperationCancelled) {
-                                    return Err(e); // Propagate cancellation up
+                                    println!("📭 No repositories selected from GitHub");
+                                    // Don't propagate error - this is expected behavior
+                                } else {
+                                    display_warning(&format!("Failed to fetch repositories: {}", e));
+                                    println!("💡 You can browse repositories later with a custom command");
                                 }
+                            } else {
+                                display_warning(&format!("Failed to fetch repositories: {}", e));
+                                println!("💡 You can browse repositories later with a custom command");
                             }
-                            display_warning(&format!("Failed to fetch repositories: {}", e));
-                            println!("💡 You can browse repositories later with a custom command");
                         }
                     }
                 }
@@ -245,11 +250,16 @@ pub async fn handle_init(mode: Option<&InitMode>) -> Result<()> {
                             // Check if this is a user cancellation (Ctrl-C)
                             if let Some(pm_error) = e.downcast_ref::<PmError>() {
                                 if matches!(pm_error, PmError::OperationCancelled) {
-                                    return Err(e); // Propagate cancellation up
+                                    println!("📭 No repositories selected from GitHub");
+                                    // Don't propagate error - this is expected behavior
+                                } else {
+                                    display_warning(&format!("Failed to fetch repositories: {}", e));
+                                    println!("💡 You can browse repositories later with a custom command");
                                 }
+                            } else {
+                                display_warning(&format!("Failed to fetch repositories: {}", e));
+                                println!("💡 You can browse repositories later with a custom command");
                             }
-                            display_warning(&format!("Failed to fetch repositories: {}", e));
-                            println!("💡 You can browse repositories later with a custom command");
                         }
                     }
                 }
