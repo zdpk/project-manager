@@ -4,10 +4,12 @@ This document provides a detailed reference for all commands available in the `p
 
 ## Global Options
 
-*   `--help`: Print help information
-*   `--version`: Print version information
+*   `-h, --help`: Print help information
+*   `-v, --version`: Print version information
 
 ## Commands
+
+All commands now use a flat structure with aliases. No more nested subcommands like `pm project` or `pm github`.
 
 ### `pm init`
 
@@ -59,14 +61,14 @@ $ pm init
 ✅ PM initialized successfully
 👤 GitHub username: your-username
 📂 Config directory: /Users/you/.config/pm
-📁 Projects root: /Users/you/workspace
 ⚙️ Config file: /Users/you/.config/pm/config.yml
 
 🎯 Next steps:
-  pm add <path>     # Add your first project
-  pm scan           # Scan for existing repositories
-  pm load <owner>/<repo> # Clone from GitHub
-  pm browse         # Browse and select GitHub repositories
+  pm add .                       # Add current directory
+  pm add *                       # Add all subdirectories
+  pm scan                        # Scan for existing repositories
+  pm clone <owner>/<repo>        # Clone from GitHub
+  pm clone                       # Browse and select GitHub repositories
 ```
 
 **Fallback Example (GitHub CLI not authenticated):**
@@ -88,71 +90,101 @@ $ pm init
 *   Generates a YAML configuration file with user preferences
 *   Provides clear next steps for getting started
 
-### `pm project` (alias: `pm p`)
+### `pm add` (alias: `pm a`)
 
-Manages your projects (add, list, switch).
-
-#### `pm project add <PATH>`
-
-Adds a new project to `pm`'s management list.
+Adds projects to PM's management list with interactive features.
 
 **Usage:**
 
 ```bash
-pm project add ~/path/to/my-project
-pm p add my-relative-project # Resolves relative to projects_root_dir from pm init
+pm add .                                        # Add current directory
+pm add *                                        # Add all subdirectories in current folder  
+pm add my-project                               # Create and add new project
+pm add /path/to/project --name "Custom Name"   # Add with custom name
+pm add . --description "My awesome project"    # Add with description
 ```
+
+**Special Path Patterns:**
+
+*   `.` - Current directory
+*   `*` - All subdirectories in current directory
+*   `<path>` - Specific path (relative to current dir or absolute)
 
 **Options:**
 
 *   `-n, --name <NAME>`: Specify a custom name for the project. If omitted, the directory name will be used.
-*   `-t, --tags <TAGS>...`: Comma-separated list of tags to associate with the project (e.g., `frontend,react,work`).
 *   `-d, --description <DESCRIPTION>`: A brief description of the project.
+
+**Interactive Features:**
+
+*   **Tag Selection**: For single operations, interactive tag selection with existing tags + ability to create new ones
+*   **Directory Creation**: Prompts to create directories that don't exist
+*   **Git Initialization**: Option to initialize new directories as Git repositories
+*   **Duplicate Handling**: Skips already registered projects
 
 **Behavior:**
 
-*   Resolves the provided `<PATH>` to an absolute path. If `<PATH>` is relative, it's resolved against the `projects_root_dir` configured during `pm init`.
-*   Automatically detects if the path is a Git repository and stores the last commit time (`git_updated_at`).
-*   Adds the project metadata to `config.json`.
+*   Resolves paths relative to current working directory
+*   Automatically detects Git repositories and stores last commit time
+*   For single operations: full interactive experience
+*   For batch operations (`*`): streamlined processing with summary
 
-#### `pm project ls`
+### `pm list` (alias: `pm ls`)
 
-Lists all projects currently managed by `pm`.
+Lists all projects currently managed by PM.
 
 **Usage:**
 
 ```bash
-pm project ls
-pm p ls
+pm list                                         # List all projects
+pm ls --tags rust,backend                      # Filter by tags (AND logic) 
+pm ls --tags-any frontend,web                  # Filter by tags (OR logic)
+pm ls --recent 7d                               # Show recent activity (7 days)
+pm ls --detailed                                # Show detailed information
 ```
+
+**Options:**
+
+*   `-t, --tags <TAGS>`: Filter by tags (comma-separated, all tags must match)
+*   `--tags-any <TAGS>`: Filter by tags (comma-separated, any tag can match)  
+*   `-r, --recent <TIME>`: Show only projects updated within time period (e.g., 7d, 2w, 1m, 1y)
+*   `-l, --limit <NUMBER>`: Limit the number of results
+*   `-d, --detailed`: Show detailed information
 
 **Behavior:**
 
-*   Lists projects sorted by `git_updated_at` (if available), then `updated_at`, then `created_at`.
-*   Asynchronously updates `git_updated_at` for projects if it's missing or older than 1 hour.
-*   Displays project name, tags, and last update time (either Git commit time or PM update time).
+*   Lists projects sorted by `git_updated_at` (if available), then `updated_at`, then `created_at`
+*   Asynchronously updates `git_updated_at` for projects if it's missing or older than 1 hour
+*   Displays project name, path, tags, and last update time
+*   Shows both name and path to distinguish projects with same names
 
-#### `pm project s <NAME>`
+### `pm switch` (alias: `pm sw`)
 
 Switches to a specified project's directory and optionally opens an editor.
 
 **Usage:**
 
 ```bash
-pm project s my-project
-pm p s another-project
+pm switch my-project                            # Switch and open editor
+pm sw my-project --no-editor                   # Switch without opening editor
 ```
+
+**Arguments:**
+
+*   `<NAME>`: Project name to switch to
 
 **Options:**
 
-*   `--no-editor`: Prevents `pm` from opening the default editor (Helix).
+*   `--no-editor`: Prevents PM from opening the configured editor
 
 **Behavior:**
 
-*   Changes the current working directory to the project's path.
-*   If `--no-editor` is not specified, it attempts to open the `hx` (Helix) editor in the project directory.
+*   Changes the current working directory to the project's path
+*   Records project access for usage tracking
+*   Opens configured editor (respects `config.editor`, `EDITOR` env var, or defaults to `hx`)
+*   Provides suggestions for similar project names if not found
 
-### `pm tag`
+### `pm tag` (alias: `pm t`)
 
 Manages tags associated with your projects.
 
@@ -218,22 +250,16 @@ pm tag show # If run inside a project directory
 *   If `PROJECT_NAME` is provided, it shows tags for that project.
 *   If `PROJECT_NAME` is omitted, it attempts to find a project associated with the current working directory and displays its tags.
 
-## GitHub Integration
-
-### `pm github` (alias: `pm gh`)
-
-Contains subcommands for GitHub integration. All GitHub-related functionality is grouped under this command.
-
-#### `pm github clone` (alias: `pm gh clone`)
+### `pm clone` (alias: `pm cl`)
 
 Clone repositories from GitHub with interactive browse or direct clone functionality.
 
 **Usage:**
 
 ```bash
-pm github clone                               # Interactive browse your repositories
-pm gh clone microsoft/vscode                  # Clone specific repository
-pm gh clone owner/repo --directory ~/custom   # Clone to custom directory
+pm clone                                        # Interactive browse your repositories
+pm clone microsoft/vscode                      # Clone specific repository  
+pm clone owner/repo --directory ~/custom       # Clone to custom directory
 ```
 
 **Arguments:**
@@ -242,7 +268,7 @@ pm gh clone owner/repo --directory ~/custom   # Clone to custom directory
 
 **Options:**
 
-*   `-d, --directory <DIRECTORY>`: Target directory (defaults to `<projects_root>/<owner>/<repo>`)
+*   `-d, --directory <DIRECTORY>`: Target directory (defaults to `<current_dir>/<owner>/<repo>`)
 
 **Behavior:**
 
@@ -262,21 +288,21 @@ pm gh clone owner/repo --directory ~/custom   # Clone to custom directory
 *   Adds cloned project to PM management
 *   Assigns 'github' tag automatically
 
-#### `pm github scan` (alias: `pm gh scan`)
+### `pm scan` (alias: `pm sc`)
 
 Scan directories for existing Git repositories and add them to PM.
 
 **Usage:**
 
 ```bash
-pm github scan                    # Scan default workspace (~/workspace)
-pm gh scan ~/Development          # Scan specific directory
-pm gh scan --show-all            # Show all found repositories without selection
+pm scan                           # Scan current directory
+pm scan ~/Development             # Scan specific directory
+pm scan --show-all               # Show all found repositories without selection
 ```
 
 **Options:**
 
-*   `-d, --directory <DIRECTORY>`: Directory to scan (defaults to ~/workspace)
+*   `-d, --directory <DIRECTORY>`: Directory to scan (defaults to current directory)
 *   `--show-all`: Show all repositories found, don't prompt for selection
 
 **Behavior:**
@@ -287,4 +313,31 @@ pm gh scan --show-all            # Show all found repositories without selection
 *   Provides multi-select interface for adding new projects
 *   Assigns 'scanned' tag to added projects
 *   Preserves Git remote URLs as descriptions
+
+### `pm config` (alias: `pm cf`)
+
+Manage PM configuration with comprehensive options for customization.
+
+**Usage:**
+
+```bash
+pm config show                         # Show current configuration
+pm config edit                         # Edit in your preferred editor
+pm config validate                     # Validate configuration file
+pm config get editor                   # Get specific value
+pm config set editor hx                # Set specific value
+```
+
+**Subcommands:**
+
+*   `show`: Display current configuration
+*   `edit`: Open configuration file in editor
+*   `validate`: Check configuration validity
+*   `get <key>`: Get specific configuration value
+*   `set <key> <value>`: Set configuration value
+*   `list`: List all available configuration keys
+*   `backup`: Backup and restore operations
+*   `template`: Template operations
+*   `export`: Export configuration
+*   `import`: Import configuration
 
