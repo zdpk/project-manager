@@ -14,6 +14,8 @@ mod tag_commands;
 mod utils;
 mod validation;
 
+use error::PmError;
+
 use commands::config::ExportFormat;
 use commands::{config as config_cmd, init, project, tag};
 use config::load_config;
@@ -612,6 +614,13 @@ async fn main() {
             }
 
             if let Err(e) = project::handle_github_repo_selection(target_username).await {
+                // Check if this is a user cancellation (Ctrl-C)
+                if let Some(pm_error) = e.downcast_ref::<PmError>() {
+                    if matches!(pm_error, PmError::OperationCancelled) {
+                        // Gracefully exit on cancellation
+                        std::process::exit(0);
+                    }
+                }
                 handle_config_error(e);
             }
         }
