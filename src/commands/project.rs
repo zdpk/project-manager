@@ -602,22 +602,44 @@ async fn check_gh_status() -> (bool, bool) {
     use std::process::Command;
     
     // Check if gh is installed
-    let gh_installed = Command::new("gh")
-        .args(&["--version"])
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false);
+    let gh_installed = match Command::new("gh").args(&["--version"]).output() {
+        Ok(output) => {
+            if output.status.success() {
+                if let Ok(version) = String::from_utf8(output.stdout) {
+                    println!("🔧 GitHub CLI version: {}", version.trim());
+                }
+                true
+            } else {
+                false
+            }
+        }
+        Err(_) => {
+            println!("❌ GitHub CLI not found in PATH");
+            false
+        }
+    };
     
     if !gh_installed {
         return (false, false);
     }
     
     // Check if gh is authenticated
-    let gh_authenticated = Command::new("gh")
-        .args(&["auth", "status"])
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false);
+    let gh_authenticated = match Command::new("gh").args(&["auth", "status"]).output() {
+        Ok(output) => {
+            if output.status.success() {
+                if let Ok(status) = String::from_utf8(output.stdout) {
+                    println!("🔑 GitHub authentication status: {}", status.trim());
+                }
+                true
+            } else {
+                if let Ok(error) = String::from_utf8(output.stderr) {
+                    println!("🔓 GitHub CLI not authenticated: {}", error.trim());
+                }
+                false
+            }
+        }
+        Err(_) => false,
+    };
     
     (gh_installed, gh_authenticated)
 }
@@ -643,7 +665,12 @@ async fn get_gh_token() -> Option<String> {
 
 /// Fetch user repositories from GitHub
 pub async fn fetch_github_repositories(username: &str) -> Result<Vec<GitHubRepo>> {
+    println!("🔍 Checking GitHub CLI status...");
     let (gh_installed, gh_authenticated) = check_gh_status().await;
+    
+    println!("📊 GitHub CLI Status:");
+    println!("   • Installed: {}", if gh_installed { "✅ Yes" } else { "❌ No" });
+    println!("   • Authenticated: {}", if gh_authenticated { "✅ Yes" } else { "❌ No" });
     
     let octocrab = if gh_installed && gh_authenticated {
         if let Some(token) = get_gh_token().await {
@@ -669,14 +696,30 @@ pub async fn fetch_github_repositories(username: &str) -> Result<Vec<GitHubRepo>
     
     println!("🔍 Fetching repositories for user: {}", username);
     
-    let mut page = octocrab
+    let mut page = match octocrab
         .users(username)
         .repos()
         .r#type(RepoType::All)
         .sort(Sort::Updated)
         .per_page(100)
         .send()
-        .await?;
+        .await {
+            Ok(page) => {
+                println!("✅ Successfully connected to GitHub API");
+                page
+            }
+            Err(e) => {
+                println!("❌ Failed to connect to GitHub API: {}", e);
+                if e.to_string().contains("rate limit") {
+                    println!("💡 GitHub API rate limit exceeded. Try again later or authenticate with 'gh auth login'");
+                } else if e.to_string().contains("404") {
+                    println!("💡 User '{}' not found. Please check the username.", username);
+                } else {
+                    println!("💡 Check your internet connection and try again");
+                }
+                return Err(e.into());
+            }
+        };
     
     let mut all_repos = Vec::new();
     
@@ -701,6 +744,20 @@ pub async fn fetch_github_repositories(username: &str) -> Result<Vec<GitHubRepo>
     }
     
     println!("📦 Found {} repositories", all_repos.len());
+    
+    if all_repos.is_empty() {
+        println!("💡 No repositories found for user '{}'", username);
+        println!("   This could mean:");
+        println!("   • The user has no public repositories");
+        println!("   • You need authentication to see private repositories");
+        println!("   • The username might be incorrect");
+    } else {
+        let public_count = all_repos.iter().filter(|r| !r.is_private).count();
+        let private_count = all_repos.len() - public_count;
+        println!("   • {} public repositories", public_count);
+        println!("   • {} private repositories", private_count);
+    }
+    
     Ok(all_repos)
 }
 
@@ -709,7 +766,11 @@ pub async fn handle_github_repo_selection(username: &str) -> Result<usize> {
     let repos = fetch_github_repositories(username).await?;
     
     if repos.is_empty() {
-        println!("❌ No repositories found for user: {}", username);
+        println!("❌ No repositories available for selection");
+        println!("💡 Possible solutions:");
+        println!("   • Check if the username '{}' is correct", username);
+        println!("   • Run 'gh auth login' to access private repositories");
+        println!("   • Create some repositories on GitHub first");
         return Ok(0);
     }
     
