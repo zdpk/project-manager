@@ -352,23 +352,29 @@ pub async fn handle_list() -> Result<()> {
 
 #[allow(clippy::format_in_format_args)]
 fn print_config_row(label: &str, value: &str, max_width: usize) {
-    // Remove ANSI color codes for length calculation
+    // Remove ANSI color codes for length calculation  
     let clean_value = strip_ansi_codes(value);
-    let truncated_value = if clean_value.len() > 30 {
-        format!("{}...", &clean_value[..27])
+    let clean_len = clean_value.chars().count();
+    
+    if clean_len > 30 {
+        let truncated = format!("{}...", &clean_value.chars().take(27).collect::<String>());
+        println!(
+            "│ {:<width$}│ {:<30}│",
+            label, 
+            truncated,
+            width = max_width - 1
+        );
     } else {
-        clean_value.clone()
-    };
-
-    println!(
-        "│ {}│ {}│",
-        format!("{:width$}", label, width = max_width - 1),
-        if clean_value.len() > 30 {
-            format!("{:width$}", truncated_value, width = 30)
-        } else {
-            format!("{:width$}", value, width = 30)
-        }
-    );
+        // For values with color codes, we need special handling
+        let padding_spaces = 30 - clean_len;
+        println!(
+            "│ {:<width$}│ {}{}│",
+            label,
+            value,
+            " ".repeat(padding_spaces),
+            width = max_width - 1
+        );
+    }
 }
 
 fn strip_ansi_codes(s: &str) -> String {

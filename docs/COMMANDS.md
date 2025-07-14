@@ -185,8 +185,7 @@ Space to select • Enter to confirm • Ctrl+C to skip
 **Directory Creation:**
 For non-existent paths, PM will:
 1. **Confirm creation**: Ask permission to create missing directories
-2. **Git initialization**: Offer to initialize as Git repository
-3. **Proceed with tagging**: Continue with interactive tag selection
+2. **Proceed with tagging**: Continue with interactive tag selection
 
 **Batch Operations:**
 For `pm add *`, the process is streamlined:
@@ -228,8 +227,22 @@ pm ls --detailed                                # Show detailed information
 
 *   Lists projects sorted by `git_updated_at` (if available), then `updated_at`, then `created_at`
 *   Asynchronously updates `git_updated_at` for projects if it's missing or older than 1 hour
-*   Displays project name, path, tags, and last update time
-*   Shows both name and path to distinguish projects with same names
+*   Displays comprehensive project information in columnar format:
+    - **NAME**: Project name
+    - **PATH**: Full directory path
+    - **GIT**: Git repository status (📁 = Git repo, ❌ = not Git repo)
+    - **TAGS**: Project tags in bracket format
+    - **TIME**: Last activity time in human-readable format
+
+**Example Output:**
+```
+📋 Active Projects (3 found)
+
+NAME                 PATH                                     GIT   TAGS            TIME           
+project-manager      /Users/you/projects/project-manager     📁    [rust,cli]      2 hours ago
+web-app             /Users/you/projects/web-app              📁    [frontend]      1 day ago
+my-script           /Users/you/scripts/my-script             ❌    [python]        1 week ago
+```
 
 ### `pm switch` (alias: `pm sw`)
 
@@ -394,6 +407,7 @@ Manage PM configuration with comprehensive options for customization.
 **Usage:**
 
 ```bash
+pm config                              # Show current configuration (default)
 pm config show                         # Show current configuration
 pm config edit                         # Edit in your preferred editor
 pm config validate                     # Validate configuration file
@@ -449,7 +463,7 @@ When using pattern matching (`pm add *`), PM optimizes the experience:
 
 PM automatically:
 - **Detects Git repositories** and tracks commit times
-- **Offers Git initialization** for new directories
+- **Displays Git repository status** with visual indicators
 - **Preserves remote URLs** as project descriptions
 - **Updates activity tracking** based on Git history
 

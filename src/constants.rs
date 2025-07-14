@@ -3,7 +3,7 @@ pub const APP_NAME: &str = "pm";
 pub const CONFIG_FILENAME: &str = "config.yml";
 #[allow(dead_code)]
 pub const CONFIG_SCHEMA_PATH: &str = "schemas/config.schema.json";
-pub const CONFIG_VERSION: &str = "1.0";
+pub const CONFIG_VERSION: &str = "0.1.1";
 
 // Config paths (XDG Base Directory Specification)
 pub const CONFIG_DIR_NAME: &str = ".config";
@@ -20,8 +20,10 @@ pub const GIT_UPDATE_INTERVAL_HOURS: i64 = 1;
 
 // Display constants
 pub const PROJECT_NAME_WIDTH: usize = 20;
-pub const PROJECT_TAGS_WIDTH: usize = 30;
-pub const PROJECT_TIME_WIDTH: usize = 20;
+pub const PROJECT_PATH_WIDTH: usize = 40;
+pub const PROJECT_GIT_WIDTH: usize = 5;
+pub const PROJECT_TAGS_WIDTH: usize = 15;
+pub const PROJECT_TIME_WIDTH: usize = 15;
 
 // Error messages
 pub const ERROR_CONFIG_LOAD: &str = "Failed to load configuration";

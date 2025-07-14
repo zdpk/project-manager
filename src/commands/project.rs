@@ -2,7 +2,7 @@ use crate::config::{load_config, save_config, Config};
 use crate::constants::*;
 use crate::display::*;
 use crate::error::{handle_inquire_error, PmError};
-use crate::utils::get_last_git_commit_time;
+use crate::utils::{get_last_git_commit_time, is_git_repository};
 use crate::validation::{parse_time_duration, validate_path};
 use crate::Project;
 use anyhow::Result;
@@ -10,7 +10,7 @@ use chrono::Utc;
 use colored::*;
 use git2::Repository;
 use indicatif::{ProgressBar, ProgressStyle};
-use inquire::{Confirm, MultiSelect, Text};
+use inquire::{Confirm, MultiSelect, Select, Text};
 use octocrab::{Octocrab, params::users::repos::Type as RepoType, params::repos::Sort};
 use std::collections::HashSet;
 use std::fs;
@@ -168,20 +168,6 @@ async fn process_single_add(
             println!("✅ Created directory: {}", target_path.display());
         }
         
-        // Ask about git initialization for single operations
-        if total_count == 1 {
-            let init_git = handle_inquire_error(Confirm::new(&format!(
-                "Initialize '{}' as a Git repository?",
-                target_path.display()
-            ))
-            .with_default(true)
-            .prompt())?;
-
-            if init_git {
-                Repository::init(target_path)?;
-                println!("✅ Initialized Git repository in {}", target_path.display());
-            }
-        }
 
         validate_path(target_path)?
     } else {
@@ -203,7 +189,7 @@ async fn process_single_add(
 
     // Interactive tag selection (only for single operations)
     let selected_tags = if total_count == 1 {
-        select_tags_interactive(config).await?
+        select_tags_interactive(config, &project_name).await?
     } else {
         Vec::new() // For batch operations, no tags by default
     };
@@ -222,6 +208,7 @@ async fn process_single_add(
         created_at: Utc::now(),
         updated_at: Utc::now(),
         git_updated_at,
+        is_git_repository: is_git_repository(&absolute_path),
     };
 
     config.add_project(project);
@@ -233,7 +220,41 @@ async fn process_single_add(
     }
 }
 
-async fn select_tags_interactive(config: &Config) -> Result<Vec<String>> {
+async fn select_tags_interactive(config: &Config, project_name: &str) -> Result<Vec<String>> {
+    // Step 1: Ask user what they want to do
+    let action_options = vec![
+        format!("Create Project [{}] (without tags)", project_name),
+        "Add tags to this project".to_string(),
+        "Create new tag and add to project".to_string(),
+    ];
+
+    let action = handle_inquire_error(
+        Select::new("What would you like to do?", action_options)
+            .prompt()
+    )?;
+
+    // Handle different actions
+    match action.as_str() {
+        s if s.starts_with("Create Project [") => {
+            // User wants to create project without tags
+            return Ok(vec![]);
+        }
+        "Add tags to this project" => {
+            // Step 2A: Show existing tags for selection
+            return select_existing_tags(config).await;
+        }
+        "Create new tag and add to project" => {
+            // Step 2B: Create new tag first, then optionally add existing tags
+            return create_and_select_tags(config).await;
+        }
+        _ => {
+            // Fallback - should not happen
+            return Ok(vec![]);
+        }
+    }
+}
+
+async fn select_existing_tags(config: &Config) -> Result<Vec<String>> {
     // Collect all existing tags with usage counts
     let mut tag_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for project in config.projects.values() {
@@ -242,110 +263,87 @@ async fn select_tags_interactive(config: &Config) -> Result<Vec<String>> {
         }
     }
 
+    if tag_counts.is_empty() {
+        println!("ℹ️  No existing tags found. Creating project without tags.");
+        return Ok(vec![]);
+    }
+
     // Sort tags by usage count (descending)
     let mut sorted_tags: Vec<(String, usize)> = tag_counts.into_iter().collect();
     sorted_tags.sort_by(|a, b| b.1.cmp(&a.1));
 
-    // Create initial text input for tag search/creation
-    let initial_input = handle_inquire_error(
-        Text::new("🏷️  Tags:")
-            .with_help_message("Type tag name to search/create, space for multiple, Enter to confirm")
-            .with_default("")
+    // Create options for existing tags
+    let options: Vec<String> = sorted_tags
+        .iter()
+        .map(|(tag, count)| format!("{} ({} projects)", tag, count))
+        .collect();
+
+    let selections = handle_inquire_error(
+        MultiSelect::new("🏷️ Select tags for this project (type to filter):", options)
+            .with_help_message("↑↓ navigate • Space to select • Enter to confirm • Type to filter tags")
             .prompt()
     )?;
 
-    // Parse the input
-    let input_tags: Vec<String> = if initial_input.trim().is_empty() {
-        Vec::new()
-    } else {
-        initial_input
-            .split_whitespace()
-            .map(|s| s.trim().to_lowercase())
-            .filter(|s| !s.is_empty())
-            .collect()
-    };
+    // Extract tag names from selections
+    let final_tags: Vec<String> = selections
+        .iter()
+        .map(|selection| {
+            selection.split(" (").next().unwrap_or(selection).to_string()
+        })
+        .collect();
 
-    // If no input provided, show MultiSelect for existing tags
-    if input_tags.is_empty() && !sorted_tags.is_empty() {
-        let existing_options: Vec<String> = sorted_tags.iter()
-            .map(|(tag, count)| format!("{} ({} projects)", tag, count))
-            .collect();
+    Ok(final_tags)
+}
 
-        let selections = handle_inquire_error(
-            MultiSelect::new("Select from existing tags:", existing_options)
-                .with_help_message("Space to select • Enter to confirm • Ctrl+C to skip")
+async fn create_and_select_tags(config: &Config) -> Result<Vec<String>> {
+    let mut final_tags = Vec::new();
+
+    // Step 1: Create new tag(s)
+    loop {
+        let new_tag = handle_inquire_error(
+            Text::new("✨ Create new tag:")
+                .with_help_message("Enter tag name")
                 .prompt()
         )?;
 
-        let selected_tags: Vec<String> = selections.iter()
-            .map(|selection| {
-                selection.split(" (").next().unwrap_or(selection).to_string()
-            })
-            .collect();
+        if !new_tag.trim().is_empty() {
+            let tag_name = new_tag.trim().to_string();
+            if !final_tags.contains(&tag_name) {
+                final_tags.push(tag_name);
+            }
 
-        return Ok(selected_tags);
-    }
+            // Ask if user wants to add another new tag
+            let continue_adding = handle_inquire_error(
+                Confirm::new("Add another new tag?")
+                    .with_default(false)
+                    .prompt()
+            )?;
 
-    // Validate and process input tags
-    let mut final_tags = Vec::new();
-    let mut new_tags = Vec::new();
-    let mut existing_matches = Vec::new();
-
-    for input_tag in input_tags {
-        // Check if tag exists (fuzzy match)
-        let mut found_match = false;
-        for (existing_tag, count) in &sorted_tags {
-            if existing_tag.to_lowercase() == input_tag 
-                || existing_tag.to_lowercase().starts_with(&input_tag)
-                || input_tag.len() >= 3 && existing_tag.to_lowercase().contains(&input_tag) {
-                
-                existing_matches.push((existing_tag.clone(), *count, input_tag.clone()));
-                found_match = true;
+            if !continue_adding {
                 break;
             }
-        }
-
-        if !found_match {
-            new_tags.push(input_tag);
+        } else {
+            break;
         }
     }
 
-    // Handle existing tag matches
-    if !existing_matches.is_empty() {
-        println!("\n📋 Found matching existing tags:");
-        for (existing_tag, count, input) in existing_matches {
-            println!("  {} → {} ({} projects)", input, existing_tag, count);
-            final_tags.push(existing_tag);
+    // Step 2: Ask if they want to add existing tags as well
+    let add_existing = handle_inquire_error(
+        Confirm::new("Add existing tags as well?")
+            .with_default(false)
+            .prompt()
+    )?;
+
+    if add_existing {
+        let existing_tags = select_existing_tags(config).await?;
+        for tag in existing_tags {
+            if !final_tags.contains(&tag) {
+                final_tags.push(tag);
+            }
         }
     }
 
-    // Handle new tags
-    if !new_tags.is_empty() {
-        println!("\n✨ New tags to create:");
-        for tag in &new_tags {
-            println!("  {}", tag);
-        }
-        
-        let confirm_new = handle_inquire_error(
-            Confirm::new("Create these new tags?")
-                .with_default(true)
-                .prompt()
-        )?;
-
-        if confirm_new {
-            final_tags.extend(new_tags);
-        }
-    }
-
-    // Remove duplicates while preserving order
-    let mut unique_tags = Vec::new();
-    for tag in final_tags {
-        if !unique_tags.contains(&tag) {
-            unique_tags.push(tag);
-        }
-    }
-
-    Ok(unique_tags)
+    Ok(final_tags)
 }
 
 
@@ -783,6 +781,7 @@ pub async fn handle_scan(directory: Option<&Path>, show_all: bool) -> Result<usi
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
                 git_updated_at,
+                is_git_repository: is_git_repository(&repo.path),
             };
 
             config.add_project(project);
@@ -1205,6 +1204,7 @@ async fn load_repository_internal(repo: &str, directory: Option<&Path>, show_pro
         created_at: Utc::now(),
         updated_at: Utc::now(),
         git_updated_at,
+        is_git_repository: true, // Cloned repositories are always Git repositories
     };
 
     let mut config = load_config().await?;

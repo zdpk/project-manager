@@ -1,4 +1,5 @@
 use crate::constants::*;
+use crate::utils::is_git_repository;
 use crate::{MachineMetadata, Project};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -72,7 +73,7 @@ fn default_recent_projects_limit() -> u32 {
 
 // Schema example functions
 fn config_version_example() -> &'static str {
-    "1.0"
+    "0.1.1"
 }
 
 fn config_path_example() -> &'static str {
@@ -140,7 +141,22 @@ pub async fn load_config() -> Result<Config> {
         ));
     }
     let content = fs::read_to_string(path).await?;
-    let config: Config = serde_yaml::from_str(&content)?;
+    let mut config: Config = serde_yaml::from_str(&content)?;
+
+    // Migration: Check if any projects need git repository status update
+    let mut needs_migration = false;
+    for project in config.projects.values_mut() {
+        // Check if the project struct is missing the is_git_repository field (will default to false)
+        if !project.is_git_repository && is_git_repository(&project.path) {
+            project.is_git_repository = true;
+            needs_migration = true;
+        }
+    }
+
+    // Save config if migration was needed
+    if needs_migration {
+        save_config(&config).await?;
+    }
 
     // Validate config using schema
     validate_config(&config)?;

@@ -123,8 +123,11 @@ enum Commands {
     },
 
     /// Manage configuration (alias: cf)
-    #[command(subcommand, alias = "cf")]
-    Config(ConfigCommands),
+    #[command(alias = "cf")]
+    Config {
+        #[command(subcommand)]
+        command: Option<ConfigCommands>,
+    },
 
     /// Initialize PM with basic configuration
     Init,
@@ -296,6 +299,9 @@ pub struct Project {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub git_updated_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    #[schemars(description = "Whether this project is a Git repository")]
+    pub is_git_repository: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, JsonSchema)]
@@ -387,7 +393,7 @@ async fn main() {
                 }
             }
         },
-        Commands::Config(config_command) => match config_command {
+        Commands::Config { command } => match command.as_ref().unwrap_or(&ConfigCommands::Show {}) {
             ConfigCommands::Show {} => {
                 if let Err(e) = config_cmd::handle_show().await {
                     handle_config_error(e);

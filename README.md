@@ -250,7 +250,8 @@ pm tag show [project]                  # Show tags for project
 
 ```bash
 # View and edit configuration
-pm config show                         # Show current configuration
+pm config                              # Show current configuration (default)
+pm config show                         # Show current configuration  
 pm config edit                         # Edit in your preferred editor
 pm config validate                     # Validate configuration file
 
