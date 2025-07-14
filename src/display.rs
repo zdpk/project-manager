@@ -7,32 +7,48 @@ pub fn format_relative_time(time: DateTime<Utc>) -> String {
     let duration = now.signed_duration_since(time);
 
     if duration.num_minutes() < 1 {
-        "방금 전".to_string()
+        "just now".to_string()
     } else if duration.num_minutes() < 60 {
-        format!("{}분 전", duration.num_minutes())
+        let minutes = duration.num_minutes();
+        if minutes == 1 {
+            "1 minute ago".to_string()
+        } else {
+            format!("{} minutes ago", minutes)
+        }
     } else if duration.num_hours() < 24 {
-        format!("{}시간 전", duration.num_hours())
+        let hours = duration.num_hours();
+        if hours == 1 {
+            "1 hour ago".to_string()
+        } else {
+            format!("{} hours ago", hours)
+        }
     } else if duration.num_days() == 1 {
-        "어제".to_string()
+        "yesterday".to_string()
     } else if duration.num_days() < 7 {
-        format!("{}일 전", duration.num_days())
+        let days = duration.num_days();
+        if days == 1 {
+            "1 day ago".to_string()
+        } else {
+            format!("{} days ago", days)
+        }
     } else if duration.num_weeks() == 1 {
-        "1주일 전".to_string()
+        "1 week ago".to_string()
     } else if duration.num_weeks() < 4 {
-        format!("{}주일 전", duration.num_weeks())
+        let weeks = duration.num_weeks();
+        format!("{} weeks ago", weeks)
     } else if duration.num_days() < 365 {
         let months = duration.num_days() / 30;
         if months == 1 {
-            "1달 전".to_string()
+            "1 month ago".to_string()
         } else {
-            format!("{}달 전", months)
+            format!("{} months ago", months)
         }
     } else {
         let years = duration.num_days() / 365;
         if years == 1 {
-            "1년 전".to_string()
+            "1 year ago".to_string()
         } else {
-            format!("{}년 전", years)
+            format!("{} years ago", years)
         }
     }
 }
@@ -44,6 +60,12 @@ pub fn display_project_simple(project: &Project, access_time: Option<DateTime<Ut
         format!("[{}]", project.tags.join(", "))
     };
 
+    let git_status = if project.is_git_repository {
+        "📁"
+    } else {
+        "❌"
+    };
+
     let last_updated_display = if let Some(git_time) = project.git_updated_at {
         format!("Git: {}", format_relative_time(git_time))
     } else {
@@ -51,18 +73,22 @@ pub fn display_project_simple(project: &Project, access_time: Option<DateTime<Ut
     };
 
     let access_display = if let Some(access_time) = access_time {
-        format!(" (접근: {})", format_relative_time(access_time))
+        format!(" (accessed: {})", format_relative_time(access_time))
     } else {
         "".to_string()
     };
 
     println!(
-        "{:<width_name$} {:<width_tags$} {:<width_time$}{}",
+        "{:<width_name$} {:<width_path$} {:<width_git$} {:<width_tags$} {:<width_time$}{}",
         project.name,
+        project.path.display().to_string(),
+        git_status,
         tags_display,
         last_updated_display,
         access_display,
         width_name = PROJECT_NAME_WIDTH,
+        width_path = PROJECT_PATH_WIDTH,
+        width_git = PROJECT_GIT_WIDTH,
         width_tags = PROJECT_TAGS_WIDTH,
         width_time = PROJECT_TIME_WIDTH
     );
@@ -111,6 +137,20 @@ pub fn display_project_detailed(
 
 pub fn display_project_list_header(count: usize) {
     println!("📋 Active Projects ({} found)", count);
+    println!();
+    println!(
+        "{:<width_name$} {:<width_path$} {:<width_git$} {:<width_tags$} {:<width_time$}",
+        "NAME",
+        "PATH",
+        "GIT",
+        "TAGS",
+        "TIME",
+        width_name = PROJECT_NAME_WIDTH,
+        width_path = PROJECT_PATH_WIDTH,
+        width_git = PROJECT_GIT_WIDTH,
+        width_tags = PROJECT_TAGS_WIDTH,
+        width_time = PROJECT_TIME_WIDTH
+    );
 }
 
 pub fn display_no_projects() {
@@ -139,14 +179,9 @@ pub fn display_switch_info(
     }
 }
 
-pub fn display_switch_success(project_path: &std::path::Path, no_editor: bool) {
+pub fn display_switch_success(project_path: &std::path::Path) {
     println!("📂 Working directory: {}", project_path.display());
-
-    if no_editor {
-        println!("✅ Project switched (editor not opened)");
-    } else {
-        println!("🚀 Opening editor...");
-    }
+    println!("✅ Project switched");
 }
 
 pub fn display_suggestions(suggestions: &[String]) {
@@ -184,16 +219,6 @@ pub fn display_project_added(project_name: &str, tags: &[String]) {
     }
 }
 
-pub fn display_editor_error(error: &str) {
-    eprintln!(
-        "❌ Failed to execute editor '{}': {}",
-        DEFAULT_EDITOR, error
-    );
-    eprintln!("\n💡 Suggestions:");
-    eprintln!("  - {}", SUGGESTION_INSTALL_HELIX);
-    eprintln!("  - {}", SUGGESTION_USE_NO_EDITOR);
-    eprintln!("  - {}", SUGGESTION_SET_EDITOR_ENV);
-}
 
 pub fn display_init_success(
     config_dir: &std::path::Path,

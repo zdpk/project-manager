@@ -3,7 +3,7 @@ use crate::constants::*;
 use crate::display::*;
 use crate::error::{handle_inquire_error, PmError};
 use anyhow::Result;
-use inquire::{Confirm, Select, Text};
+use inquire::{Confirm, Text};
 use std::path::PathBuf;
 
 pub async fn handle_init() -> Result<()> {
@@ -37,36 +37,7 @@ pub async fn handle_init() -> Result<()> {
     };
 
 
-    // Step 3: Editor configuration
-    let editor_options = vec![
-        "code (Visual Studio Code)",
-        "hx (Helix)",
-        "nvim (Neovim)",
-        "vim (Vim)",
-        "nano (Nano)",
-        "emacs (Emacs)",
-        "Other (custom command)",
-    ];
-
-    let selected_editor = handle_inquire_error(Select::new("Choose your preferred editor:", editor_options).prompt())?;
-
-    let editor = match selected_editor {
-        "code (Visual Studio Code)" => "code".to_string(),
-        "hx (Helix)" => "hx".to_string(),
-        "nvim (Neovim)" => "nvim".to_string(),
-        "vim (Vim)" => "vim".to_string(),
-        "nano (Nano)" => "nano".to_string(),
-        "emacs (Emacs)" => "emacs".to_string(),
-        "Other (custom command)" => handle_inquire_error(Text::new("Enter custom editor command:")
-            .with_help_message("e.g., 'subl', 'atom', 'idea'")
-            .prompt())?,
-        _ => "code".to_string(), // fallback
-    };
-
-    // Step 4: Additional settings
-    let auto_open_editor = handle_inquire_error(Confirm::new("Automatically open editor when switching to projects?")
-        .with_default(true)
-        .prompt())?;
+    // Step 3: Additional settings
 
     let show_git_status = handle_inquire_error(Confirm::new("Show git status in project listings?")
         .with_default(true)
@@ -86,13 +57,11 @@ pub async fn handle_init() -> Result<()> {
         }
     }
 
-    // Step 5: Create and save configuration
+    // Step 4: Create and save configuration
     let config = Config {
         version: crate::constants::CONFIG_VERSION.to_string(),
         config_path: config_dir_path.clone(),
-        editor,
         settings: ConfigSettings {
-            auto_open_editor,
             show_git_status,
             recent_projects_limit: 10, // default
         },

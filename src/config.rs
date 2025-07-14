@@ -1,4 +1,5 @@
 use crate::constants::*;
+use crate::utils::is_git_repository;
 use crate::{MachineMetadata, Project};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -25,9 +26,6 @@ pub struct Config {
         example = "config_path_example"
     )]
     pub config_path: PathBuf,
-    #[serde(default = "default_editor")]
-    #[schemars(description = "Default editor command", example = "editor_example")]
-    pub editor: String,
     #[serde(default)]
     #[schemars(description = "Application settings")]
     pub settings: ConfigSettings,
@@ -43,9 +41,6 @@ pub struct Config {
     description = "Application-specific settings"
 )]
 pub struct ConfigSettings {
-    #[serde(default = "default_auto_open_editor")]
-    #[schemars(description = "Automatically open editor when switching to a project")]
-    pub auto_open_editor: bool,
     #[serde(default = "default_show_git_status")]
     #[schemars(description = "Show git status in project listings")]
     pub show_git_status: bool,
@@ -54,13 +49,6 @@ pub struct ConfigSettings {
     pub recent_projects_limit: u32,
 }
 
-fn default_editor() -> String {
-    DEFAULT_EDITOR.to_string()
-}
-
-fn default_auto_open_editor() -> bool {
-    true
-}
 
 fn default_show_git_status() -> bool {
     true
@@ -72,7 +60,7 @@ fn default_recent_projects_limit() -> u32 {
 
 // Schema example functions
 fn config_version_example() -> &'static str {
-    "1.0"
+    "0.1.1"
 }
 
 fn config_path_example() -> &'static str {
@@ -80,16 +68,12 @@ fn config_path_example() -> &'static str {
 }
 
 
-fn editor_example() -> &'static str {
-    "hx"
-}
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             version: CONFIG_VERSION.to_string(),
             config_path: PathBuf::new(),
-            editor: String::new(), // 빈 문자열로 초기화
             settings: ConfigSettings::default(),
             projects: HashMap::new(),
             machine_metadata: HashMap::new(),
@@ -140,7 +124,22 @@ pub async fn load_config() -> Result<Config> {
         ));
     }
     let content = fs::read_to_string(path).await?;
-    let config: Config = serde_yaml::from_str(&content)?;
+    let mut config: Config = serde_yaml::from_str(&content)?;
+
+    // Migration: Check if any projects need git repository status update
+    let mut needs_migration = false;
+    for project in config.projects.values_mut() {
+        // Check if the project struct is missing the is_git_repository field (will default to false)
+        if !project.is_git_repository && is_git_repository(&project.path) {
+            project.is_git_repository = true;
+            needs_migration = true;
+        }
+    }
+
+    // Save config if migration was needed
+    if needs_migration {
+        save_config(&config).await?;
+    }
 
     // Validate config using schema
     validate_config(&config)?;

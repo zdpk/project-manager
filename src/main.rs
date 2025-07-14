@@ -43,55 +43,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Manage projects (add, list, switch)
-    #[command(subcommand, alias = "p")]
-    Project(ProjectCommands),
-
-    /// GitHub integration (clone, scan)
-    #[command(subcommand, alias = "gh")]
-    Github(GithubCommands),
-
-    /// Manage project tags
-    Tag {
-        #[command(subcommand)]
-        action: TagAction,
-    },
-
-    /// Manage configuration
-    #[command(subcommand, alias = "c")]
-    Config(ConfigCommands),
-
-    /// Initialize PM with basic configuration
-    Init,
-}
-
-#[derive(Subcommand)]
-enum GithubCommands {
-    /// Clone repositories from GitHub (interactive browse or direct clone)
-    Clone {
-        /// Repository in format owner/repo (optional for interactive browse)
-        repo: Option<String>,
-
-        /// Target directory (defaults to <root_dir>/<owner>/<repo>)
-        #[arg(short, long)]
-        directory: Option<PathBuf>,
-    },
-
-    /// Scan for Git repositories and add them to PM
-    Scan {
-        /// Directory to scan (defaults to ~/workspace)
-        #[arg(short, long)]
-        directory: Option<PathBuf>,
-
-        /// Show all repositories found, don't prompt for selection
-        #[arg(long)]
-        show_all: bool,
-    },
-}
-
-#[derive(Subcommand)]
-enum ProjectCommands {
-    /// Add a new project to manage
+    /// Add a new project to manage (alias: a)
+    #[command(alias = "a")]
     Add {
         /// Path to the project directory
         path: PathBuf,
@@ -105,7 +58,19 @@ enum ProjectCommands {
         #[arg(short, long)]
         description: Option<String>,
     },
-    /// List managed projects  
+
+    /// Clone repositories from GitHub (interactive browse or direct clone) (alias: cl)
+    #[command(alias = "cl")]
+    Clone {
+        /// Repository in format owner/repo (optional for interactive browse)
+        repo: Option<String>,
+
+        /// Target directory (defaults to <current_dir>/<owner>/<repo>)
+        #[arg(short, long)]
+        directory: Option<PathBuf>,
+    },
+
+    /// List managed projects (alias: ls)
     #[command(alias = "ls")]
     List {
         /// Filter projects by tags (comma-separated, all tags must match)
@@ -128,15 +93,43 @@ enum ProjectCommands {
         #[arg(short = 'd', long)]
         detailed: bool,
     },
-    /// Switch to a project directory and open editor
-    #[command(alias = "s")]
+
+    /// Switch to a project directory (alias: sw)
+    #[command(alias = "sw")]
     Switch {
         name: String,
-
-        #[arg(long)]
-        no_editor: bool,
     },
+
+    /// Scan for Git repositories and add them to PM (alias: sc)
+    #[command(alias = "sc")]
+    Scan {
+        /// Directory to scan (defaults to current directory)
+        #[arg(short, long)]
+        directory: Option<PathBuf>,
+
+        /// Show all repositories found, don't prompt for selection
+        #[arg(long)]
+        show_all: bool,
+    },
+
+    /// Manage project tags (alias: t)
+    #[command(alias = "t")]
+    Tag {
+        #[command(subcommand)]
+        action: TagAction,
+    },
+
+    /// Manage configuration (alias: cf)
+    #[command(alias = "cf")]
+    Config {
+        #[command(subcommand)]
+        command: Option<ConfigCommands>,
+    },
+
+    /// Initialize PM with basic configuration
+    Init,
 }
+
 
 #[derive(Subcommand)]
 enum TagAction {
@@ -172,7 +165,7 @@ enum ConfigCommands {
     /// Show current configuration
     Show {},
 
-    /// Edit configuration file with default editor
+    /// Edit configuration file
     Edit {},
 
     /// Validate configuration file
@@ -183,13 +176,13 @@ enum ConfigCommands {
 
     /// Get a specific configuration value
     Get {
-        /// Configuration key (supports dot notation like 'settings.auto_open_editor')
+        /// Configuration key (supports dot notation like 'settings.show_git_status')
         key: String,
     },
 
     /// Set a configuration value
     Set {
-        /// Configuration key (supports dot notation like 'settings.auto_open_editor')
+        /// Configuration key (supports dot notation like 'settings.show_git_status')
         key: String,
         /// New value
         value: String,
@@ -303,6 +296,9 @@ pub struct Project {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub git_updated_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    #[schemars(description = "Whether this project is a Git repository")]
+    pub is_git_repository: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, JsonSchema)]
@@ -321,42 +317,57 @@ async fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Project(project_command) => match project_command {
-            ProjectCommands::Add {
-                path,
-                name,
-                tags,
-                description,
-            } => {
-                if let Err(e) = project::handle_add(path, name, tags, description).await {
-                    handle_config_error(e);
-                }
+        Commands::Add {
+            path,
+            name,
+            tags,
+            description,
+        } => {
+            if let Err(e) = project::handle_add(path, name, tags, description).await {
+                handle_config_error(e);
             }
-            ProjectCommands::List {
-                tags,
-                tags_any,
-                recent,
-                limit,
-                detailed,
-            } => {
-                if let Err(e) = project::handle_list(tags, tags_any, recent, limit, *detailed).await
-                {
-                    handle_config_error(e);
-                }
-            }
-            ProjectCommands::Switch { name, no_editor } => {
-                let mut config = match load_config().await {
-                    Ok(config) => config,
-                    Err(e) => {
-                        handle_config_error(e);
+        }
+        Commands::Clone { repo, directory } => {
+            if let Err(e) = project::handle_clone(repo.as_deref(), directory.as_deref()).await {
+                // Check if this is a user cancellation (Ctrl-C)
+                if let Some(pm_error) = e.downcast_ref::<PmError>() {
+                    if matches!(pm_error, PmError::OperationCancelled) {
+                        // Gracefully exit on cancellation
+                        std::process::exit(0);
                     }
-                };
-
-                if let Err(e) = project::handle_switch(&mut config, name, *no_editor).await {
+                }
+                handle_config_error(e);
+            }
+        }
+        Commands::List {
+            tags,
+            tags_any,
+            recent,
+            limit,
+            detailed,
+        } => {
+            if let Err(e) = project::handle_list(tags, tags_any, recent, limit, *detailed).await {
+                handle_config_error(e);
+            }
+        }
+        Commands::Switch { name } => match load_config().await {
+            Ok(mut config) => {
+                if let Err(e) = project::handle_switch(&mut config, name).await {
                     handle_error(e, ERROR_PROJECT_NOT_FOUND);
                 }
             }
+            Err(e) => {
+                handle_config_error(e);
+            }
         },
+        Commands::Scan {
+            directory,
+            show_all,
+        } => {
+            if let Err(e) = project::handle_scan(directory.as_deref(), *show_all).await {
+                handle_config_error(e);
+            }
+        }
         Commands::Tag { action } => match action {
             TagAction::Add { project_name, tags } => {
                 if let Err(e) = tag::handle_tag_add(project_name, tags).await {
@@ -379,7 +390,7 @@ async fn main() {
                 }
             }
         },
-        Commands::Config(config_command) => match config_command {
+        Commands::Config { command } => match command.as_ref().unwrap_or(&ConfigCommands::Show {}) {
             ConfigCommands::Show {} => {
                 if let Err(e) = config_cmd::handle_show().await {
                     handle_config_error(e);
@@ -490,28 +501,6 @@ async fn main() {
         Commands::Init => {
             if let Err(e) = init::handle_init().await {
                 handle_error(e, "Failed to initialize PM");
-            }
-        }
-        Commands::Github(github_command) => match github_command {
-            GithubCommands::Clone { repo, directory } => {
-                if let Err(e) = project::handle_clone(repo.as_deref(), directory.as_deref()).await {
-                    // Check if this is a user cancellation (Ctrl-C)
-                    if let Some(pm_error) = e.downcast_ref::<PmError>() {
-                        if matches!(pm_error, PmError::OperationCancelled) {
-                            // Gracefully exit on cancellation
-                            std::process::exit(0);
-                        }
-                    }
-                    handle_config_error(e);
-                }
-            }
-            GithubCommands::Scan {
-                directory,
-                show_all,
-            } => {
-                if let Err(e) = project::handle_scan(directory.as_deref(), *show_all).await {
-                    handle_config_error(e);
-                }
             }
         }
     }
