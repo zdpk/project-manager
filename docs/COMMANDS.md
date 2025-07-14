@@ -121,65 +121,82 @@ For single operations, PM provides a flexible tag input interface:
 Type tag name to search/create, space for multiple, Enter to confirm
 ```
 
-**Tag Selection Features:**
-- **Direct input**: Type tags with space separation (`rust backend api`)
-- **Fuzzy matching**: Intelligent matching against existing tags
-- **Hybrid approach**: Text input + MultiSelect fallback for browsing
-- **Usage statistics**: See project counts for existing tags
-- **Smart confirmation**: Preview new tags before creation
-- **Browse mode**: Empty input activates existing tag browser
+**Two-Step Tag Selection Interface:**
 
-**Example Tag Selection Workflows:**
+PM now uses a clean two-step approach that eliminates interface confusion:
 
-**Direct tag input (fastest):**
+**Step 1 - Action Selection (Always First):**
+- **Create Project without tags**: Quick project creation
+- **Add tags to this project**: Select from existing tags with filtering
+- **Create new tag and add**: Create new tags, optionally add existing ones
+
+**Step 2 - Conditional Tag Selection:**
+- **Smart filtering**: Type to filter existing tags in real-time
+- **Usage statistics**: See project counts for existing tags  
+- **Multiple selection**: Use Space key to select/deselect tags
+- **Flexible workflow**: Mix new and existing tags as needed
+
+**Example Workflows:**
+
+**Workflow A - No Tags (Fastest):**
 ```bash
-$ pm add ./my-rust-api
+$ pm add ./quick-script
 
-🏷️  Tags: rust backend web
+? What would you like to do?
+  > Create Project [quick-script] (without tags)
+    Add tags to this project
+    Create new tag and add to project
 
-📋 Found matching existing tags:
-  rust → rust (15 projects)
-  backend → backend (18 projects)
-
-✨ New tags to create:
-  web
-
-Create these new tags? Yes
-
-✅ Added project 'my-rust-api' with tags: rust, backend, web
-   Path: /Users/you/projects/my-rust-api
+✅ Successfully added project 'quick-script'
+   Path: /Users/you/projects/quick-script
 ```
 
-**Fuzzy matching:**
+**Workflow B - Select Existing Tags:**
 ```bash
-$ pm add ./frontend-app
+$ pm add ./web-dashboard
 
-🏷️  Tags: front react typ
+? What would you like to do?
+    Create Project [web-dashboard] (without tags)
+  > Add tags to this project
+    Create new tag and add to project
 
-📋 Found matching existing tags:
-  front → frontend (12 projects)
-  react → react (8 projects)
-  typ → typescript (6 projects)
+🏷️ Select tags for this project (type to filter):
+  [ ] frontend (12 projects)
+  [ ] react (8 projects)
+  [ ] dashboard (3 projects)
+  [ ] typescript (6 projects)
 
-✅ Added project 'frontend-app' with tags: frontend, react, typescript
-   Path: /Users/you/projects/frontend-app
+# Type "react" to filter:
+🏷️ Select tags for this project (type to filter): react
+  [x] react (8 projects)
+
+✅ Successfully added project 'web-dashboard' with tags: react
+   Path: /Users/you/projects/web-dashboard
 ```
 
-**Browse existing tags:**
+**Workflow C - Create New + Existing Tags:**
 ```bash
-$ pm add ./legacy-project
+$ pm add ./ml-project
 
-🏷️  Tags: [press Enter with no input]
+? What would you like to do?
+    Create Project [ml-project] (without tags)
+    Add tags to this project
+  > Create new tag and add to project
 
-Select from existing tags:
-[ ] rust (15 projects)
-[x] legacy (3 projects)
-[x] maintenance (5 projects)
+✨ Create new tag: machine-learning
+? Add another new tag? Yes
 
-Space to select • Enter to confirm • Ctrl+C to skip
+✨ Create new tag: pytorch
+? Add another new tag? No
 
-✅ Added project 'legacy-project' with tags: legacy, maintenance
-   Path: /Users/you/projects/legacy-project
+? Add existing tags as well? Yes
+
+🏷️ Select tags for this project (type to filter):
+  [x] python (15 projects)
+  [x] research (4 projects)
+
+✅ Successfully added project 'ml-project' with tags: machine-learning, pytorch, python, research
+   Path: /Users/you/projects/ml-project
 ```
 
 **Directory Creation:**

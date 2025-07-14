@@ -26,9 +26,6 @@ pub struct Config {
         example = "config_path_example"
     )]
     pub config_path: PathBuf,
-    #[serde(default = "default_editor")]
-    #[schemars(description = "Default editor command", example = "editor_example")]
-    pub editor: String,
     #[serde(default)]
     #[schemars(description = "Application settings")]
     pub settings: ConfigSettings,
@@ -44,9 +41,6 @@ pub struct Config {
     description = "Application-specific settings"
 )]
 pub struct ConfigSettings {
-    #[serde(default = "default_auto_open_editor")]
-    #[schemars(description = "Automatically open editor when switching to a project")]
-    pub auto_open_editor: bool,
     #[serde(default = "default_show_git_status")]
     #[schemars(description = "Show git status in project listings")]
     pub show_git_status: bool,
@@ -55,13 +49,6 @@ pub struct ConfigSettings {
     pub recent_projects_limit: u32,
 }
 
-fn default_editor() -> String {
-    DEFAULT_EDITOR.to_string()
-}
-
-fn default_auto_open_editor() -> bool {
-    true
-}
 
 fn default_show_git_status() -> bool {
     true
@@ -81,16 +68,12 @@ fn config_path_example() -> &'static str {
 }
 
 
-fn editor_example() -> &'static str {
-    "hx"
-}
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             version: CONFIG_VERSION.to_string(),
             config_path: PathBuf::new(),
-            editor: String::new(), // 빈 문자열로 초기화
             settings: ConfigSettings::default(),
             projects: HashMap::new(),
             machine_metadata: HashMap::new(),

@@ -3,7 +3,7 @@ use crate::error::handle_inquire_error;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use colored::*;
-use inquire::{Confirm, Select, Text};
+use inquire::{Confirm, Select};
 use serde::{Deserialize, Serialize};
 use serde_yaml::Value;
 use std::fs;
@@ -20,8 +20,6 @@ pub enum ExportFormat {
 const VALID_KEYS: &[&str] = &[
     "version",
     "config_path",
-    "editor",
-    "settings.auto_open_editor",
     "settings.show_git_status",
     "settings.recent_projects_limit",
 ];
@@ -50,19 +48,6 @@ pub async fn handle_show() -> Result<()> {
     print_config_row(
         "Config Path",
         &config.config_path.display().to_string(),
-        max_width,
-    );
-    print_config_row("Editor", &config.editor, max_width);
-    print_config_row(
-        "Auto Open Editor",
-        &format!(
-            "{}",
-            if config.settings.auto_open_editor {
-                "✓ enabled".green()
-            } else {
-                "✗ disabled".red()
-            }
-        ),
         max_width,
     );
     print_config_row(
@@ -94,11 +79,10 @@ pub async fn handle_show() -> Result<()> {
 }
 
 pub async fn handle_edit() -> Result<()> {
-    let config = load_config().await?;
     let config_path = get_config_path()?;
 
-    // Determine editor to use
-    let editor = std::env::var("EDITOR").unwrap_or_else(|_| config.editor.clone());
+    // Determine editor to use from environment
+    let editor = std::env::var("EDITOR").unwrap_or_else(|_| "nano".to_string());
 
     println!("🔧 Opening config file in {}...", editor.cyan());
 
@@ -144,16 +128,6 @@ pub async fn handle_validate() -> Result<()> {
             println!("{}", "📋 Validation summary:".blue().bold());
 
 
-            // Editor validation
-            if Command::new(&config.editor)
-                .arg("--version")
-                .output()
-                .is_ok()
-            {
-                println!("  - Editor command: {} found in PATH", "✓".green());
-            } else {
-                println!("  - Editor command: {} not found or invalid", "⚠️".yellow());
-            }
 
             // Settings validation
             if config.settings.recent_projects_limit > 0
@@ -330,11 +304,9 @@ pub async fn handle_list() -> Result<()> {
     println!("{}", "🔧 Basic Settings:".yellow().bold());
     list_config_key(&config_value, "version", "string");
     list_config_key(&config_value, "config_path", "path");
-    list_config_key(&config_value, "editor", "string");
 
     println!();
     println!("{}", "⚙️  Advanced Settings:".yellow().bold());
-    list_config_key(&config_value, "settings.auto_open_editor", "boolean");
     list_config_key(&config_value, "settings.show_git_status", "boolean");
     list_config_key(&config_value, "settings.recent_projects_limit", "integer");
 
@@ -433,7 +405,7 @@ fn set_nested_value(value: &mut Value, path: &[&str], new_value: Value) -> Resul
 
 fn parse_value_with_validation(key: &str, value: &str) -> Result<Value> {
     match key {
-        "settings.auto_open_editor" | "settings.show_git_status" => {
+        "settings.show_git_status" => {
             match value.to_lowercase().as_str() {
                 "true" | "1" | "yes" | "on" => Ok(Value::Bool(true)),
                 "false" | "0" | "no" | "off" => Ok(Value::Bool(false)),
@@ -1055,7 +1027,6 @@ async fn apply_builtin_template(name: &str) -> Result<()> {
 fn create_minimal_config() -> Config {
     let mut config = Config::default();
     config.settings.recent_projects_limit = 5;
-    config.settings.auto_open_editor = false;
     config.settings.show_git_status = false;
     config
 }
@@ -1063,45 +1034,24 @@ fn create_minimal_config() -> Config {
 fn create_developer_config() -> Config {
     let mut config = Config::default();
     config.settings.recent_projects_limit = 20;
-    config.settings.auto_open_editor = true;
     config.settings.show_git_status = true;
-    config.editor = detect_editor();
     config
 }
 
 fn create_team_config() -> Config {
     let mut config = Config::default();
     config.settings.recent_projects_limit = 15;
-    config.settings.auto_open_editor = true;
     config.settings.show_git_status = true;
-    config.editor = "code".to_string(); // Default to VS Code for teams
     config
 }
 
 fn create_enterprise_config() -> Config {
     let mut config = Config::default();
     config.settings.recent_projects_limit = 50;
-    config.settings.auto_open_editor = false;
     config.settings.show_git_status = true;
-    config.editor = detect_editor();
     config
 }
 
-fn detect_editor() -> String {
-    // Try to detect editor from environment or common installations
-    if let Ok(editor) = std::env::var("EDITOR") {
-        return editor;
-    }
-
-    let editors = ["code", "vim", "nvim", "nano", "emacs"];
-    for editor in editors {
-        if Command::new(editor).arg("--version").output().is_ok() {
-            return editor.to_string();
-        }
-    }
-
-    "nano".to_string() // fallback
-}
 
 // =====================================================
 // Setup Command
@@ -1119,18 +1069,6 @@ pub async fn handle_setup(quick: bool) -> Result<()> {
 
     // Projects root directory
 
-    // Editor
-    let detected_editor = detect_editor();
-    let editor = handle_inquire_error(Text::new("Preferred editor:")
-        .with_default(&detected_editor)
-        .prompt())?;
-    config.editor = editor;
-
-    // Auto open editor
-    let auto_open = handle_inquire_error(Confirm::new("Automatically open editor when switching projects?")
-        .with_default(true)
-        .prompt())?;
-    config.settings.auto_open_editor = auto_open;
 
     // Show git status
     let show_git = handle_inquire_error(Confirm::new("Show git status in project lists?")
@@ -1165,9 +1103,6 @@ async fn setup_quick() -> Result<()> {
     let mut config = Config::default();
 
     // Set sensible defaults
-
-    config.editor = detect_editor();
-    config.settings.auto_open_editor = true;
     config.settings.show_git_status = true;
     config.settings.recent_projects_limit = 15;
 
@@ -1416,23 +1351,6 @@ async fn add_to_history(action: &str, details: &str) -> Result<()> {
 fn show_config_diff(old: &Config, new: &Config) -> Result<()> {
     // Simple field-by-field comparison
 
-    if old.editor != new.editor {
-        println!(
-            "  {} {} → {}",
-            "editor:".yellow(),
-            old.editor.red(),
-            new.editor.green()
-        );
-    }
-
-    if old.settings.auto_open_editor != new.settings.auto_open_editor {
-        println!(
-            "  {} {} → {}",
-            "settings.auto_open_editor:".yellow(),
-            old.settings.auto_open_editor.to_string().red(),
-            new.settings.auto_open_editor.to_string().green()
-        );
-    }
 
     if old.settings.show_git_status != new.settings.show_git_status {
         println!(

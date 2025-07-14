@@ -179,14 +179,9 @@ pub fn display_switch_info(
     }
 }
 
-pub fn display_switch_success(project_path: &std::path::Path, no_editor: bool) {
+pub fn display_switch_success(project_path: &std::path::Path) {
     println!("📂 Working directory: {}", project_path.display());
-
-    if no_editor {
-        println!("✅ Project switched (editor not opened)");
-    } else {
-        println!("🚀 Opening editor...");
-    }
+    println!("✅ Project switched");
 }
 
 pub fn display_suggestions(suggestions: &[String]) {
@@ -224,16 +219,6 @@ pub fn display_project_added(project_name: &str, tags: &[String]) {
     }
 }
 
-pub fn display_editor_error(error: &str) {
-    eprintln!(
-        "❌ Failed to execute editor '{}': {}",
-        DEFAULT_EDITOR, error
-    );
-    eprintln!("\n💡 Suggestions:");
-    eprintln!("  - {}", SUGGESTION_INSTALL_HELIX);
-    eprintln!("  - {}", SUGGESTION_USE_NO_EDITOR);
-    eprintln!("  - {}", SUGGESTION_SET_EDITOR_ENV);
-}
 
 pub fn display_init_success(
     config_dir: &std::path::Path,

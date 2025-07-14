@@ -5,13 +5,13 @@ A fast, terminal-based project management CLI tool written in Rust. PM helps dev
 ## Features
 
 - **Interactive Setup**: Guided initialization with auto-detection and GitHub integration
-- **Fast Project Switching**: Switch between projects in under 1 second with automatic editor launch
+- **Fast Project Switching**: Switch between projects in under 1 second
 - **Smart Project Discovery**: Automatic detection of Git repositories and programming languages
-- **Flexible Tagging System**: Organize projects with custom tags for easy filtering
+- **Intuitive Tag Selection**: Two-step interface with smart filtering and flexible tag creation
 - **GitHub Integration**: Clone and manage repositories directly from GitHub
 - **Advanced Configuration**: Backup, templates, export/import, and validation
 - **Machine-Specific Metadata**: Track project access and usage across different machines
-- **Cross-Platform Editor Support**: Works with VS Code, Helix, Vim, Neovim, and more
+- **Fast Directory Switching**: Instant navigation to project directories
 - **Rich CLI Interface**: Colorful output with progress indicators and interactive prompts
 
 ## Installation
@@ -61,10 +61,10 @@ cargo install --path .
 # Interactive initialization - sets up PM configuration
 pm init
 
-# Add a project (with interactive tag selection)
+# Add a project (with intuitive two-step tag selection)
 pm add ~/my-projects/awesome-app
 
-# Add current directory with enhanced experience
+# Add current directory with enhanced experience  
 pm add .
 
 # Add all subdirectories in current folder
@@ -82,11 +82,11 @@ pm list
 # List projects with filters (aliases work too)
 pm ls --tags rust --recent 7d --limit 10
 
-# Switch to a project (opens editor automatically)
+# Switch to a project directory
 pm switch my-project
 
-# Switch without opening editor (using alias)
-pm sw my-project --no-editor
+# Using alias
+pm sw my-project
 ```
 
 ### Initial Setup Example
@@ -102,8 +102,6 @@ $ pm init
 > Use detected GitHub username 'your-username'? Yes
 > Configuration directory: ~/.config/pm
   Where PM configuration files will be stored (press Enter for default)
-> Choose your preferred editor: hx (Helix)
-> Automatically open editor when switching to projects? Yes
 > Show git status in project listings? Yes
 
 📂 Creating configuration directory: /Users/you/.config/pm
@@ -130,7 +128,7 @@ $ pm init
 ### Project Management
 
 ```bash
-# Add projects with interactive tag selection
+# Add projects with intuitive two-step tag selection
 pm add <path>                                   # Add specific directory
 pm add . --name "My Project"                   # Add current directory with custom name
 pm add ~/code/api --description "REST API"     # Add with description
@@ -144,8 +142,8 @@ pm ls --recent 7d                               # Show recent activity (7 days)
 pm ls --detailed                                # Show detailed information
 
 # Switch projects
-pm switch <name>                                # Switch and open editor
-pm sw <name> --no-editor                       # Switch without editor (alias)
+pm switch <name>                                # Switch to project directory
+pm sw <name>                                    # Switch to project (alias)
 ```
 
 ### GitHub Integration
@@ -162,79 +160,49 @@ pm scan ~/Development                        # Scan specific directory
 pm scan --show-all                           # Show all found repositories
 ```
 
-### Interactive Tag Selection
+### Two-Step Tag Selection Interface
 
-When adding projects, PM provides a flexible tag input interface:
+When adding projects, PM provides an intuitive two-step workflow:
 
+**Step 1 - Choose Your Action:**
 ```
-🏷️  Tags: _____ 
-
-Type tag name to search/create, space for multiple, Enter to confirm
+? What would you like to do?
+  > Create Project [project-name] (without tags)
+    Add tags to this project
+    Create new tag and add to project
 ```
 
-**Key Features:**
-- **⚡ Direct input**: Type tags directly with space separation
-- **🔍 Fuzzy matching**: Smart matching against existing tags
-- **📊 Usage insights**: See tag popularity when browsing
-- **🎯 Multi-input**: `rust backend api` creates/matches multiple tags
-- **✨ Browse mode**: Empty input → browse existing tags
+**Step 2 - Smart Tag Selection:**
+```
+🏷️ Select tags for this project (type to filter):
+  [ ] frontend (8 projects)
+  [ ] react (5 projects)
+  [ ] typescript (6 projects)
+```
 
-**Example Workflows:**
+**Key Improvements:**
+- **🎯 Clear separation**: Actions vs. tag selection
+- **⚡ No confusion**: Simple select for actions, checkboxes for tags
+- **🔍 Real-time filtering**: Type to find tags instantly
+- **✨ Flexible workflow**: Create new, select existing, or skip tags
+- **📊 Usage insights**: See project counts for each tag
 
-**Direct tag input (recommended):**
+**Example Workflow:**
+
 ```bash
-$ pm add ./my-rust-api
+$ pm add ./react-dashboard
 
-🏷️  Tags: rust backend api
+? What would you like to do?
+  > Add tags to this project
 
-📋 Found matching existing tags:
-  rust → rust (15 projects)
-  backend → backend (18 projects)
+🏷️ Select tags for this project (type to filter): react
+  [x] react (5 projects)
 
-✨ New tags to create:
-  api
-
-Create these new tags? Yes
-
-✅ Added project 'my-rust-api' with tags: rust, backend, api
+✅ Successfully added project 'react-dashboard' with tags: react
 ```
 
-**Browse existing tags:**
-```bash
-$ pm add ./existing-project
+For more detailed examples and workflows, see [TAG_SELECTION_GUIDE.md](docs/TAG_SELECTION_GUIDE.md).
 
-🏷️  Tags: [just press Enter]
-
-Select from existing tags:
-[ ] rust (15 projects)
-[ ] backend (18 projects)
-[x] frontend (12 projects)
-[x] react (8 projects)
-
-✅ Added project 'existing-project' with tags: frontend, react
-```
-
-**Fuzzy matching:**
-```bash
-$ pm add ./web-app
-
-🏷️  Tags: front typ
-
-📋 Found matching existing tags:
-  front → frontend (12 projects)
-  typ → typescript (6 projects)
-
-✅ Added project 'web-app' with tags: frontend, typescript
-```
-
-**No tags:**
-```bash
-$ pm add ./simple-script
-
-🏷️  Tags: [just press Enter, then Enter again in browse mode]
-
-✅ Added project 'simple-script' with no tags
-```
 
 ### Tag Management
 
@@ -252,12 +220,12 @@ pm tag show [project]                  # Show tags for project
 # View and edit configuration
 pm config                              # Show current configuration (default)
 pm config show                         # Show current configuration  
-pm config edit                         # Edit in your preferred editor
+pm config edit                         # Edit configuration file
 pm config validate                     # Validate configuration file
 
 # Get and set values
-pm config get editor                    # Get specific value
-pm config set editor code              # Set specific value
+pm config get settings.show_git_status # Get specific value
+pm config set settings.show_git_status true # Set specific value
 pm config list                         # List all available keys
 
 # Backup and restore
@@ -284,8 +252,7 @@ PM stores its configuration in a configurable location (default: `~/.config/pm/c
 
 - **GitHub username**: For repository cloning and GitHub integration
 - **Configuration path**: Where PM stores its configuration files (configurable during init)
-- **Editor preference**: Your preferred code editor
-- **Application settings**: Auto-open editor, show git status, etc.
+- **Application settings**: Show git status, recent projects limit, etc.
 - **Project data**: All managed projects and their metadata
 - **Machine metadata**: Access tracking across different machines
 
@@ -295,9 +262,7 @@ PM stores its configuration in a configurable location (default: `~/.config/pm/c
 version: "1.0"
 github_username: "your-username"
 config_path: "/Users/you/.config/pm"
-editor: "hx"
 settings:
-  auto_open_editor: false
   show_git_status: true
   recent_projects_limit: 10
 projects: {}
@@ -309,8 +274,6 @@ machine_metadata: {}
 During `pm init`, you can customize:
 
 - **Configuration Directory**: Where PM stores its files (default: `~/.config/pm`)
-- **Editor**: Your preferred code editor (VS Code, Helix, Vim, etc.)
-- **Auto-open Editor**: Whether to automatically open editor when switching projects
 - **Git Status Display**: Whether to show git status information in project listings
 
 ## Advanced Usage
@@ -424,10 +387,10 @@ pm init  # Run the initialization wizard
 pm ls    # List all projects to see available names
 ```
 
-**Editor not opening**:
+**GitHub connectivity issues**:
 ```bash
-pm config set editor your-editor  # Set your preferred editor
-pm s project --no-editor          # Skip editor launch
+gh auth status                    # Check GitHub CLI authentication
+pm clone                          # Try interactive repository browsing
 ```
 
 **Configuration issues**:

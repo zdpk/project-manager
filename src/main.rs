@@ -94,13 +94,10 @@ enum Commands {
         detailed: bool,
     },
 
-    /// Switch to a project directory and open editor (alias: sw)
+    /// Switch to a project directory (alias: sw)
     #[command(alias = "sw")]
     Switch {
         name: String,
-
-        #[arg(long)]
-        no_editor: bool,
     },
 
     /// Scan for Git repositories and add them to PM (alias: sc)
@@ -168,7 +165,7 @@ enum ConfigCommands {
     /// Show current configuration
     Show {},
 
-    /// Edit configuration file with default editor
+    /// Edit configuration file
     Edit {},
 
     /// Validate configuration file
@@ -179,13 +176,13 @@ enum ConfigCommands {
 
     /// Get a specific configuration value
     Get {
-        /// Configuration key (supports dot notation like 'settings.auto_open_editor')
+        /// Configuration key (supports dot notation like 'settings.show_git_status')
         key: String,
     },
 
     /// Set a configuration value
     Set {
-        /// Configuration key (supports dot notation like 'settings.auto_open_editor')
+        /// Configuration key (supports dot notation like 'settings.show_git_status')
         key: String,
         /// New value
         value: String,
@@ -353,9 +350,9 @@ async fn main() {
                 handle_config_error(e);
             }
         }
-        Commands::Switch { name, no_editor } => match load_config().await {
+        Commands::Switch { name } => match load_config().await {
             Ok(mut config) => {
-                if let Err(e) = project::handle_switch(&mut config, name, *no_editor).await {
+                if let Err(e) = project::handle_switch(&mut config, name).await {
                     handle_error(e, ERROR_PROJECT_NOT_FOUND);
                 }
             }

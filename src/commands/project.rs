@@ -397,7 +397,7 @@ pub async fn handle_list(
     Ok(())
 }
 
-pub async fn handle_switch(config: &mut Config, name: &str, no_editor: bool) -> Result<()> {
+pub async fn handle_switch(config: &mut Config, name: &str) -> Result<()> {
     if config.projects.is_empty() {
         display_no_projects();
         return Err(PmError::NoProjectsFound.into());
@@ -440,33 +440,7 @@ pub async fn handle_switch(config: &mut Config, name: &str, no_editor: bool) -> 
             // Continue anyway, don't fail the switch operation
         }
 
-        display_switch_success(&project_path, no_editor);
-
-        if !no_editor {
-            let editor = if config.editor.is_empty() {
-                std::env::var("EDITOR").unwrap_or_else(|_| DEFAULT_EDITOR.to_string())
-            } else {
-                config.editor.clone()
-            };
-
-            println!("🚀 Opening {} in {}", project_name, editor);
-            let mut cmd = std::process::Command::new(&editor);
-            cmd.arg(".");
-
-            // Spawn the editor process without waiting
-            match cmd.spawn() {
-                Ok(_) => {
-                    // Editor launched successfully
-                }
-                Err(e) => {
-                    display_error(
-                        "Failed to open editor",
-                        &format!("{}: {}", editor, e),
-                    );
-                    display_suggestions(&vec!["pm config set editor hx".to_string(), "pm config set editor code".to_string(), "pm config set editor vim".to_string()]);
-                }
-            }
-        }
+        display_switch_success(&project_path);
 
         Ok(())
     } else {
