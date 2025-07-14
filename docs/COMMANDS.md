@@ -282,7 +282,7 @@ pm sw my-project                               # Switch using alias
 *   Changes the current working directory to the project's path
 *   Records project access for usage tracking
 *   Provides suggestions for similar project names if not found
-*   Automatically sets up shell integration for Fish shell
+*   Automatically sets up shell integration for Fish, Zsh, and Bash shells
 *   With shell integration, changes your shell's current directory (not just PM's)
 
 **Shell Integration:**
@@ -311,6 +311,24 @@ pm init
 - **Automatic detection**: No manual setup required during init
 - **Conflict handling**: Backup options for existing functions/files
 - **Easy removal**: Delete the integration file to disable
+- **Environment variable support**: Use `_PM_BINARY` to specify custom PM binary path
+
+**Environment Variable Configuration:**
+
+The shell integration supports the `_PM_BINARY` environment variable for specifying a custom PM binary path. This is particularly useful for:
+- **Development/Testing**: Using locally built binaries instead of system-installed versions
+- **Custom installations**: Pointing to PM binaries in non-standard locations
+- **Version switching**: Testing different PM versions
+
+```bash
+# Use development binary for testing
+export _PM_BINARY="/path/to/project-manager/target/debug/pm"
+pm sw my-project  # Uses development binary
+
+# Unset to use system binary
+unset _PM_BINARY
+pm sw my-project  # Uses system binary from PATH
+```
 
 Once integrated, `pm sw` will change your shell's current directory and display:
 ```bash
