@@ -12,6 +12,7 @@ A fast, terminal-based project management CLI tool written in Rust. PM helps dev
 - **Advanced Configuration**: Backup, templates, export/import, and validation
 - **Machine-Specific Metadata**: Track project access and usage across different machines
 - **Fast Directory Switching**: Instant navigation to project directories
+- **Shell Integration**: Automatic shell setup for Fish, Bash, and Zsh with directory changing
 - **Rich CLI Interface**: Colorful output with progress indicators and interactive prompts
 
 ## Installation
@@ -296,12 +297,55 @@ pm ls --tags rust,cli --recent 30d --limit 5
 pm s my-proj    # Suggests similar project names if not found
 ```
 
+### Shell Integration
+
+PM provides automatic shell integration that allows `pm sw` to actually change your shell's current directory (not just the PM process directory). **Shell integration is automatically set up during `pm init`**.
+
+#### Automatic Setup During Init
+```bash
+pm init
+🚀 Initializing PM...
+📂 Configuration directory: ~/.config/pm
+🐚 Show git status in project listings? › Yes  
+🔧 Setup Zsh shell integration for directory switching? › Yes
+   Detected shell: Zsh
+🐚 Zsh shell integration installed successfully
+   Function file: ~/.config/pm/pm.zsh
+   Added to: ~/.zshrc
+✅ PM initialized successfully!
+```
+
+#### Supported Shells
+
+**Fish Shell**
+- ✅ **Native autoloading** - uses Fish's function system (`~/.config/fish/functions/pm.fish`)
+- ✅ **Automatic detection** - no manual setup required
+- ✅ **Conflict handling** - backup/remove options for existing functions
+
+**Zsh Shell** 
+- ✅ **Separate config file** - `~/.config/pm/pm.zsh` + automatic `.zshrc` sourcing
+- ✅ **Automatic detection** - no manual setup required  
+- ✅ **Conflict handling** - backup options for existing files
+
+**Bash Shell**
+- ✅ **Separate config file** - `~/.config/pm/pm.bash` + automatic `.bashrc` sourcing
+- ✅ **Automatic detection** - no manual setup required
+- ✅ **Conflict handling** - backup options for existing files
+
+#### How It Works
+Once integrated, `pm sw` will:
+1. Execute the PM switch command
+2. Parse the output for "Switched to: /path/to/project"  
+3. Change your shell's current directory to that path
+4. Display confirmation: "📁 Changed directory to: /path/to/project"
+```
+
 ### Workflow Integration
 
 ```bash
-# Integration with other tools
-pm s my-project && npm start
-pm s api-service && docker-compose up -d
+# Integration with other tools (with shell integration)
+pm sw my-project && npm start
+pm sw api-service && docker-compose up -d
 
 # Useful aliases
 alias pml="pm ls"

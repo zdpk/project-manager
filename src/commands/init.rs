@@ -2,6 +2,7 @@ use crate::config::{get_config_path, save_config, Config, ConfigSettings};
 use crate::constants::*;
 use crate::display::*;
 use crate::error::{handle_inquire_error, PmError};
+use crate::shell_integration;
 use anyhow::Result;
 use inquire::{Confirm, Text};
 use std::path::PathBuf;
@@ -71,6 +72,13 @@ pub async fn handle_init() -> Result<()> {
 
     save_config(&config).await?;
     display_init_success(&config_dir_path, &config_path);
+    
+    // Step 5: Shell integration setup
+    println!();
+    if let Err(e) = shell_integration::setup_shell_integration_for_init().await {
+        display_warning(&format!("Failed to setup shell integration: {}", e));
+        println!("💡 You can manually setup shell integration later");
+    }
 
     // Show next steps for using PM
     println!("\n🎯 Next steps:");
