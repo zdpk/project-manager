@@ -12,6 +12,7 @@ A fast, terminal-based project management CLI tool written in Rust. PM helps dev
 - **Advanced Configuration**: Backup, templates, export/import, and validation
 - **Machine-Specific Metadata**: Track project access and usage across different machines
 - **Fast Directory Switching**: Instant navigation to project directories
+- **Shell Integration**: Automatic shell setup for Fish, Bash, and Zsh with directory changing
 - **Rich CLI Interface**: Colorful output with progress indicators and interactive prompts
 
 ## Installation
@@ -296,12 +297,42 @@ pm ls --tags rust,cli --recent 30d --limit 5
 pm s my-proj    # Suggests similar project names if not found
 ```
 
+### Shell Integration
+
+PM provides automatic shell integration that allows `pm sw` to actually change your shell's current directory (not just the PM process directory).
+
+#### Fish Shell (Automatic)
+When you run `pm sw` in Fish shell, PM automatically detects Fish and sets up integration:
+
+```bash
+# First time using pm sw in Fish
+pm sw my-project
+# PM detects Fish and offers to setup integration
+? Setup Fish shell integration for directory switching? › Yes
+🐠 Fish shell integration installed successfully
+   Function file: ~/.config/fish/functions/pm.fish
+   Usage: pm sw <project> will now change your shell directory
+📁 Changed directory to: /path/to/my-project
+```
+
+**Fish Integration Features:**
+- ✅ **Zero manual setup** - automatic detection and installation
+- ✅ **Native autoloading** - uses Fish's function system
+- ✅ **Conflict handling** - backup/remove options for existing functions
+- ✅ **Easy removal** - `rm ~/.config/fish/functions/pm.fish`
+
+#### Bash/Zsh (Coming Soon)
+```bash
+# Manual setup for now
+pm() { if [[ "$1" == "sw" ]]; then eval "$(command pm "$@")"; else command pm "$@"; fi; }
+```
+
 ### Workflow Integration
 
 ```bash
-# Integration with other tools
-pm s my-project && npm start
-pm s api-service && docker-compose up -d
+# Integration with other tools (with shell integration)
+pm sw my-project && npm start
+pm sw api-service && docker-compose up -d
 
 # Useful aliases
 alias pml="pm ls"

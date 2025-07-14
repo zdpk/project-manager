@@ -2,6 +2,7 @@ use crate::config::{load_config, save_config, Config};
 use crate::constants::*;
 use crate::display::*;
 use crate::error::{handle_inquire_error, PmError};
+use crate::shell_integration;
 use crate::utils::{get_last_git_commit_time, is_git_repository};
 use crate::validation::{parse_time_duration, validate_path};
 use crate::Project;
@@ -440,7 +441,15 @@ pub async fn handle_switch(config: &mut Config, name: &str) -> Result<()> {
             // Continue anyway, don't fail the switch operation
         }
 
+        // Check and setup shell integration if needed
+        if let Err(e) = shell_integration::check_and_setup_shell_integration().await {
+            display_warning(&format!("Failed to setup shell integration: {}", e));
+        }
+
         display_switch_success(&project_path);
+        
+        // Output for shell integration (parsed by shell function)
+        println!("Switched to: {}", project_path.display());
 
         Ok(())
     } else {

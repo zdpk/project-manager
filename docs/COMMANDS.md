@@ -264,7 +264,7 @@ my-script           /Users/you/scripts/my-script             ❌    [python]    
 
 ### `pm switch` (alias: `pm sw`)
 
-Switches to a specified project's directory.
+Switches to a specified project's directory with automatic shell integration.
 
 **Usage:**
 
@@ -282,6 +282,34 @@ pm sw my-project                               # Switch using alias
 *   Changes the current working directory to the project's path
 *   Records project access for usage tracking
 *   Provides suggestions for similar project names if not found
+*   Automatically sets up shell integration for Fish shell
+*   With shell integration, changes your shell's current directory (not just PM's)
+
+**Shell Integration:**
+
+PM automatically detects Fish shell and offers to set up integration on first use:
+
+```bash
+# First time using pm sw in Fish shell
+pm sw my-project
+? Setup Fish shell integration for directory switching? › Yes
+🐠 Fish shell integration installed successfully
+   Function file: ~/.config/fish/functions/pm.fish
+   Usage: pm sw <project> will now change your shell directory
+📁 Changed directory to: /path/to/my-project
+```
+
+**Fish Integration Features:**
+- **Automatic detection**: No manual setup required
+- **Native autoloading**: Uses Fish's function system (`~/.config/fish/functions/pm.fish`)
+- **Conflict handling**: Backup/remove options for existing functions
+- **Easy removal**: Delete `~/.config/fish/functions/pm.fish` to disable
+
+**Manual Shell Integration (Bash/Zsh):**
+```bash
+# Add to your .bashrc or .zshrc
+pm() { if [[ "$1" == "sw" ]]; then eval "$(command pm "$@")"; else command pm "$@"; fi; }
+```
 
 ### `pm remove` (alias: `pm rm`)
 
