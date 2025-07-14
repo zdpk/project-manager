@@ -25,15 +25,15 @@ pm init
 
 PM will guide you through setting up:
 
-1. **GitHub username**: Automatically detected from GitHub CLI, with manual fallback
-2. **Configuration directory**: Where PM stores its configuration files (default: `~/.config/pm`)
-3. **Git status display**: Whether to show git status information in project listings
+1. **Configuration directory**: Where PM stores its configuration files (default: `~/.config/pm`)
+2. **Git status display**: Whether to show git status information in project listings
+3. **Shell integration**: Automatic setup for Fish, Zsh, or Bash shells for directory switching
 
-**GitHub Username Detection:**
-- PM automatically detects your GitHub username using `gh api user`
-- Requires GitHub CLI (`gh`) to be installed and authenticated
-- Falls back to manual input if detection fails
-- Provides confirmation prompt for detected username
+**Shell Integration Setup:**
+- Automatically detects your current shell (Fish, Zsh, Bash)
+- Creates appropriate integration files for directory switching
+- Handles conflicts with existing configurations safely
+- Provides backup options for existing files
 
 **Example Output:**
 
@@ -264,7 +264,7 @@ my-script           /Users/you/scripts/my-script             ❌    [python]    
 
 ### `pm switch` (alias: `pm sw`)
 
-Switches to a specified project's directory.
+Switches to a specified project's directory with automatic shell integration.
 
 **Usage:**
 
@@ -282,9 +282,7 @@ pm sw my-project                               # Switch using alias
 *   Changes the current working directory to the project's path
 *   Records project access for usage tracking
 *   Provides suggestions for similar project names if not found
-<<<<<<< Updated upstream
-=======
-*   Automatically sets up shell integration for Fish shell
+*   Automatically sets up shell integration for Fish, Zsh, and Bash shells
 *   With shell integration, changes your shell's current directory (not just PM's)
 
 **Shell Integration:**
@@ -337,7 +335,6 @@ Once integrated, `pm sw` will change your shell's current directory and display:
 pm sw my-project
 📁 Changed directory to: /path/to/my-project
 ```
->>>>>>> Stashed changes
 
 ### `pm remove` (alias: `pm rm`)
 

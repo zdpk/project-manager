@@ -10,6 +10,7 @@ mod config;
 mod constants;
 mod display;
 mod error;
+mod shell_integration;
 mod tag_commands;
 mod utils;
 mod validation;

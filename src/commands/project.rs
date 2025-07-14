@@ -441,6 +441,9 @@ pub async fn handle_switch(config: &mut Config, name: &str) -> Result<()> {
         }
 
         display_switch_success(&project_path);
+        
+        // Output for shell integration (parsed by shell function)
+        println!("Switched to: {}", project_path.display());
 
         Ok(())
     } else {
