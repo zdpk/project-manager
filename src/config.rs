@@ -204,6 +204,19 @@ impl Config {
         *count += 1;
     }
 
+    pub fn remove_project(&mut self, project_id: Uuid) -> anyhow::Result<()> {
+        // Remove project from main collection
+        self.projects.remove(&project_id);
+        
+        // Remove from all machine metadata
+        for metadata in self.machine_metadata.values_mut() {
+            metadata.last_accessed.remove(&project_id);
+            metadata.access_counts.remove(&project_id);
+        }
+        
+        Ok(())
+    }
+
     pub fn get_project_access_info(&self, project_id: Uuid) -> (Option<DateTime<Utc>>, u32) {
         let machine_id = get_machine_id();
 

@@ -119,6 +119,17 @@ enum Commands {
         action: TagAction,
     },
 
+    /// Remove projects from PM (alias: rm)
+    #[command(alias = "rm")]
+    Remove {
+        /// Project name (optional for interactive mode)
+        project: Option<String>,
+        
+        /// Skip confirmation prompt
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
+
     /// Manage configuration (alias: cf)
     #[command(alias = "cf")]
     Config {
@@ -390,6 +401,11 @@ async fn main() {
                 }
             }
         },
+        Commands::Remove { project, yes } => {
+            if let Err(e) = project::handle_remove(project.as_deref(), *yes).await {
+                handle_config_error(e);
+            }
+        }
         Commands::Config { command } => match command.as_ref().unwrap_or(&ConfigCommands::Show {}) {
             ConfigCommands::Show {} => {
                 if let Err(e) = config_cmd::handle_show().await {
