@@ -299,32 +299,45 @@ pm s my-proj    # Suggests similar project names if not found
 
 ### Shell Integration
 
-PM provides automatic shell integration that allows `pm sw` to actually change your shell's current directory (not just the PM process directory).
+PM provides automatic shell integration that allows `pm sw` to actually change your shell's current directory (not just the PM process directory). **Shell integration is automatically set up during `pm init`**.
 
-#### Fish Shell (Automatic)
-When you run `pm sw` in Fish shell, PM automatically detects Fish and sets up integration:
-
+#### Automatic Setup During Init
 ```bash
-# First time using pm sw in Fish
-pm sw my-project
-# PM detects Fish and offers to setup integration
-? Setup Fish shell integration for directory switching? › Yes
-🐠 Fish shell integration installed successfully
-   Function file: ~/.config/fish/functions/pm.fish
-   Usage: pm sw <project> will now change your shell directory
-📁 Changed directory to: /path/to/my-project
+pm init
+🚀 Initializing PM...
+📂 Configuration directory: ~/.config/pm
+🐚 Show git status in project listings? › Yes  
+🔧 Setup Zsh shell integration for directory switching? › Yes
+   Detected shell: Zsh
+🐚 Zsh shell integration installed successfully
+   Function file: ~/.config/pm/pm.zsh
+   Added to: ~/.zshrc
+✅ PM initialized successfully!
 ```
 
-**Fish Integration Features:**
-- ✅ **Zero manual setup** - automatic detection and installation
-- ✅ **Native autoloading** - uses Fish's function system
-- ✅ **Conflict handling** - backup/remove options for existing functions
-- ✅ **Easy removal** - `rm ~/.config/fish/functions/pm.fish`
+#### Supported Shells
 
-#### Bash/Zsh (Coming Soon)
-```bash
-# Manual setup for now
-pm() { if [[ "$1" == "sw" ]]; then eval "$(command pm "$@")"; else command pm "$@"; fi; }
+**Fish Shell**
+- ✅ **Native autoloading** - uses Fish's function system (`~/.config/fish/functions/pm.fish`)
+- ✅ **Automatic detection** - no manual setup required
+- ✅ **Conflict handling** - backup/remove options for existing functions
+
+**Zsh Shell** 
+- ✅ **Separate config file** - `~/.config/pm/pm.zsh` + automatic `.zshrc` sourcing
+- ✅ **Automatic detection** - no manual setup required  
+- ✅ **Conflict handling** - backup options for existing files
+
+**Bash Shell**
+- ✅ **Separate config file** - `~/.config/pm/pm.bash` + automatic `.bashrc` sourcing
+- ✅ **Automatic detection** - no manual setup required
+- ✅ **Conflict handling** - backup options for existing files
+
+#### How It Works
+Once integrated, `pm sw` will:
+1. Execute the PM switch command
+2. Parse the output for "Switched to: /path/to/project"  
+3. Change your shell's current directory to that path
+4. Display confirmation: "📁 Changed directory to: /path/to/project"
 ```
 
 ### Workflow Integration

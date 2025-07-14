@@ -12,28 +12,60 @@ enum ConflictAction {
     Cancel,
 }
 
-/// Detects if the current shell is Fish
-pub fn is_fish_shell() -> bool {
-    std::env::var("FISH_VERSION").is_ok()
+#[derive(Debug, Clone)]
+pub enum ShellType {
+    Fish,
+    Zsh,
+    Bash,
+    Unknown,
+}
+
+/// Detects the current shell type
+pub fn detect_shell() -> ShellType {
+    if std::env::var("FISH_VERSION").is_ok()
         || std::env::var("SHELL")
             .map(|s| s.ends_with("/fish"))
             .unwrap_or(false)
-}
-
-/// Detects if the current shell is Zsh
-pub fn is_zsh_shell() -> bool {
-    std::env::var("ZSH_VERSION").is_ok()
+    {
+        ShellType::Fish
+    } else if std::env::var("ZSH_VERSION").is_ok()
         || std::env::var("SHELL")
             .map(|s| s.ends_with("/zsh"))
             .unwrap_or(false)
-}
-
-/// Detects if the current shell is Bash
-pub fn is_bash_shell() -> bool {
-    std::env::var("BASH_VERSION").is_ok()
+    {
+        ShellType::Zsh
+    } else if std::env::var("BASH_VERSION").is_ok()
         || std::env::var("SHELL")
             .map(|s| s.ends_with("/bash"))
             .unwrap_or(false)
+    {
+        ShellType::Bash
+    } else {
+        ShellType::Unknown
+    }
+}
+
+/// Legacy helper functions for backward compatibility
+pub fn is_fish_shell() -> bool {
+    matches!(detect_shell(), ShellType::Fish)
+}
+
+pub fn is_zsh_shell() -> bool {
+    matches!(detect_shell(), ShellType::Zsh)
+}
+
+pub fn is_bash_shell() -> bool {
+    matches!(detect_shell(), ShellType::Bash)
+}
+
+/// Check if shell integration exists for the given shell type
+pub fn shell_integration_exists(shell_type: &ShellType) -> bool {
+    match shell_type {
+        ShellType::Fish => fish_function_exists(),
+        ShellType::Zsh => zsh_integration_exists(),
+        ShellType::Bash => bash_integration_exists(),
+        ShellType::Unknown => false,
+    }
 }
 
 /// Check if Fish function file exists
@@ -42,6 +74,52 @@ fn fish_function_exists() -> bool {
         .map(|home| home.join(".config/fish/functions"))
         .unwrap_or_default();
     fish_functions_dir.join("pm.fish").exists()
+}
+
+/// Check if Zsh integration exists
+fn zsh_integration_exists() -> bool {
+    let config_dir = dirs::home_dir()
+        .map(|home| home.join(".config/pm"))
+        .unwrap_or_default();
+    let zsh_file = config_dir.join("pm.zsh");
+    
+    if !zsh_file.exists() {
+        return false;
+    }
+    
+    // Check if .zshrc sources the file
+    let zshrc_path = dirs::home_dir()
+        .map(|home| home.join(".zshrc"))
+        .unwrap_or_default();
+    
+    if let Ok(content) = std::fs::read_to_string(zshrc_path) {
+        content.contains("source ~/.config/pm/pm.zsh") || content.contains(". ~/.config/pm/pm.zsh")
+    } else {
+        false
+    }
+}
+
+/// Check if Bash integration exists
+fn bash_integration_exists() -> bool {
+    let config_dir = dirs::home_dir()
+        .map(|home| home.join(".config/pm"))
+        .unwrap_or_default();
+    let bash_file = config_dir.join("pm.bash");
+    
+    if !bash_file.exists() {
+        return false;
+    }
+    
+    // Check if .bashrc sources the file
+    let bashrc_path = dirs::home_dir()
+        .map(|home| home.join(".bashrc"))
+        .unwrap_or_default();
+    
+    if let Ok(content) = std::fs::read_to_string(bashrc_path) {
+        content.contains("source ~/.config/pm/pm.bash") || content.contains(". ~/.config/pm/pm.bash")
+    } else {
+        false
+    }
 }
 
 /// Handle conflict when existing Fish function is found
@@ -190,38 +268,270 @@ async fn setup_fish_integration() -> Result<()> {
     Ok(())
 }
 
-/// Setup shell integration based on detected shell
-pub async fn setup_shell_integration() -> Result<()> {
-    if is_fish_shell() {
-        if !fish_function_exists() {
-            setup_fish_integration().await?;
-        } else {
-            println!("🐠 Fish shell integration already exists");
+/// Setup shell integration for init command
+pub async fn setup_shell_integration_for_init() -> Result<()> {
+    let shell_type = detect_shell();
+    
+    match shell_type {
+        ShellType::Unknown => {
+            println!("❓ Unknown shell detected");
+            println!("💡 Current shell: {}", std::env::var("SHELL").unwrap_or_default());
+            println!("💡 Manual setup may be required");
+            return Ok(());
         }
-    } else if is_zsh_shell() || is_bash_shell() {
-        println!("🚧 Bash/Zsh integration coming soon!");
-        println!("💡 For now, you can manually add this to your shell config:");
-        println!("   pm() {{ if [[ \"$1\" == \"sw\" ]]; then eval \"$(command pm \"$@\")\"; else command pm \"$@\"; fi; }}");
-    } else {
-        println!("❓ Unknown shell detected");
-        println!("💡 Current shell: {}", std::env::var("SHELL").unwrap_or_default());
+        _ => {}
+    }
+    
+    let shell_name = match shell_type {
+        ShellType::Fish => "Fish",
+        ShellType::Zsh => "Zsh", 
+        ShellType::Bash => "Bash",
+        ShellType::Unknown => "Unknown",
+    };
+    
+    // Check if integration already exists
+    if shell_integration_exists(&shell_type) {
+        println!("🔧 {} shell integration already exists", shell_name);
+        return Ok(());
+    }
+    
+    let should_setup = Confirm::new(&format!("Setup {} shell integration for directory switching?", shell_name))
+        .with_default(true)
+        .with_help_message("This will allow 'pm sw' to change your shell's current directory")
+        .prompt()?;
+
+    if !should_setup {
+        println!("⏭️  Skipped shell integration setup");
+        println!("💡 You can manually setup later or run 'pm init' again");
+        return Ok(());
+    }
+
+    match shell_type {
+        ShellType::Fish => setup_fish_integration().await?,
+        ShellType::Zsh => setup_zsh_integration().await?,
+        ShellType::Bash => setup_bash_integration().await?,
+        ShellType::Unknown => unreachable!(),
     }
 
     Ok(())
 }
 
-/// Check if shell integration should be automatically set up
-pub async fn check_and_setup_shell_integration() -> Result<()> {
-    if is_fish_shell() && !fish_function_exists() {
-        let should_setup = Confirm::new("Setup Fish shell integration for directory switching?")
-            .with_default(true)
-            .with_help_message("This will allow 'pm sw' to change your shell's current directory")
-            .prompt()?;
+/// Create Zsh function content
+fn create_zsh_function_content() -> String {
+    format!(
+        r#"# Generated by PM v{} - Zsh shell integration
+# This function enables directory switching with 'pm sw'
 
-        if should_setup {
-            setup_fish_integration().await?;
+pm() {{
+    if [[ "$1" == "sw" || "$1" == "switch" ]]; then
+        local pm_output
+        pm_output=$(command pm "$@" 2>&1)
+        local pm_status=$?
+        
+        if [[ $pm_status -eq 0 ]]; then
+            # Extract directory from PM output
+            local new_dir
+            new_dir=$(echo "$pm_output" | grep "Switched to:" | sed 's/.*Switched to: //')
+            if [[ -n "$new_dir" && -d "$new_dir" ]]; then
+                cd "$new_dir"
+                echo "📁 Changed directory to: $new_dir"
+            else
+                echo "$pm_output"
+            fi
+        else
+            echo "$pm_output"
+        fi
+        
+        return $pm_status
+    else
+        command pm "$@"
+    fi
+}}"#,
+        env!("CARGO_PKG_VERSION")
+    )
+}
+
+/// Create Bash function content
+fn create_bash_function_content() -> String {
+    format!(
+        r#"# Generated by PM v{} - Bash shell integration
+# This function enables directory switching with 'pm sw'
+
+pm() {{
+    if [[ "$1" == "sw" || "$1" == "switch" ]]; then
+        local pm_output
+        pm_output=$(command pm "$@" 2>&1)
+        local pm_status=$?
+        
+        if [[ $pm_status -eq 0 ]]; then
+            # Extract directory from PM output
+            local new_dir
+            new_dir=$(echo "$pm_output" | grep "Switched to:" | sed 's/.*Switched to: //')
+            if [[ -n "$new_dir" && -d "$new_dir" ]]; then
+                cd "$new_dir"
+                echo "📁 Changed directory to: $new_dir"
+            else
+                echo "$pm_output"
+            fi
+        else
+            echo "$pm_output"
+        fi
+        
+        return $pm_status
+    else
+        command pm "$@"
+    fi
+}}"#,
+        env!("CARGO_PKG_VERSION")
+    )
+}
+
+/// Setup Zsh shell integration
+async fn setup_zsh_integration() -> Result<()> {
+    let config_dir = dirs::home_dir()
+        .ok_or_else(|| anyhow!("Could not find home directory"))?
+        .join(".config/pm");
+    
+    let zsh_file_path = config_dir.join("pm.zsh");
+    let zshrc_path = dirs::home_dir()
+        .ok_or_else(|| anyhow!("Could not find home directory"))?
+        .join(".zshrc");
+    
+    // Create config directory if it doesn't exist
+    fs::create_dir_all(&config_dir).await?;
+    
+    // Handle existing pm.zsh file conflict
+    if zsh_file_path.exists() {
+        let existing_content = fs::read_to_string(&zsh_file_path).await?;
+        if !existing_content.contains("# Generated by PM v") {
+            // User-created file, ask for confirmation
+            let should_overwrite = Confirm::new("Existing pm.zsh file found. Overwrite?")
+                .with_default(false)
+                .prompt()?;
+            
+            if !should_overwrite {
+                println!("❌ Zsh integration setup cancelled");
+                return Ok(());
+            }
+            
+            // Backup existing file
+            let backup_path = zsh_file_path.with_extension("zsh.backup");
+            fs::copy(&zsh_file_path, &backup_path).await?;
+            println!("💾 Backed up existing file to: {}", backup_path.display());
         }
     }
+    
+    // Create the Zsh function file
+    let zsh_content = create_zsh_function_content();
+    fs::write(&zsh_file_path, zsh_content).await?;
+    
+    // Add source line to .zshrc if it doesn't exist
+    let source_line = "source ~/.config/pm/pm.zsh";
+    let mut needs_source_line = true;
+    
+    if zshrc_path.exists() {
+        let zshrc_content = fs::read_to_string(&zshrc_path).await?;
+        if zshrc_content.contains(source_line) || zshrc_content.contains(". ~/.config/pm/pm.zsh") {
+            needs_source_line = false;
+        }
+    }
+    
+    if needs_source_line {
+        let source_comment = "\n# PM (Project Manager) shell integration\n";
+        let source_content = format!("{}{}\n", source_comment, source_line);
+        
+        if zshrc_path.exists() {
+            // Append to existing .zshrc
+            let mut existing_content = fs::read_to_string(&zshrc_path).await?;
+            existing_content.push_str(&source_content);
+            fs::write(&zshrc_path, existing_content).await?;
+        } else {
+            // Create new .zshrc
+            fs::write(&zshrc_path, source_content).await?;
+        }
+        
+        println!("📝 Added source line to .zshrc");
+    }
+    
+    println!("🐚 Zsh shell integration installed successfully");
+    println!("   Function file: {}", zsh_file_path.display());
+    println!("   Sourced from: {}", zshrc_path.display());
+    println!("   Usage: pm sw <project> will now change your shell directory");
+    
+    Ok(())
+}
 
+/// Setup Bash shell integration
+async fn setup_bash_integration() -> Result<()> {
+    let config_dir = dirs::home_dir()
+        .ok_or_else(|| anyhow!("Could not find home directory"))?
+        .join(".config/pm");
+    
+    let bash_file_path = config_dir.join("pm.bash");
+    let bashrc_path = dirs::home_dir()
+        .ok_or_else(|| anyhow!("Could not find home directory"))?
+        .join(".bashrc");
+    
+    // Create config directory if it doesn't exist
+    fs::create_dir_all(&config_dir).await?;
+    
+    // Handle existing pm.bash file conflict
+    if bash_file_path.exists() {
+        let existing_content = fs::read_to_string(&bash_file_path).await?;
+        if !existing_content.contains("# Generated by PM v") {
+            // User-created file, ask for confirmation
+            let should_overwrite = Confirm::new("Existing pm.bash file found. Overwrite?")
+                .with_default(false)
+                .prompt()?;
+            
+            if !should_overwrite {
+                println!("❌ Bash integration setup cancelled");
+                return Ok(());
+            }
+            
+            // Backup existing file
+            let backup_path = bash_file_path.with_extension("bash.backup");
+            fs::copy(&bash_file_path, &backup_path).await?;
+            println!("💾 Backed up existing file to: {}", backup_path.display());
+        }
+    }
+    
+    // Create the Bash function file
+    let bash_content = create_bash_function_content();
+    fs::write(&bash_file_path, bash_content).await?;
+    
+    // Add source line to .bashrc if it doesn't exist
+    let source_line = "source ~/.config/pm/pm.bash";
+    let mut needs_source_line = true;
+    
+    if bashrc_path.exists() {
+        let bashrc_content = fs::read_to_string(&bashrc_path).await?;
+        if bashrc_content.contains(source_line) || bashrc_content.contains(". ~/.config/pm/pm.bash") {
+            needs_source_line = false;
+        }
+    }
+    
+    if needs_source_line {
+        let source_comment = "\n# PM (Project Manager) shell integration\n";
+        let source_content = format!("{}{}\n", source_comment, source_line);
+        
+        if bashrc_path.exists() {
+            // Append to existing .bashrc
+            let mut existing_content = fs::read_to_string(&bashrc_path).await?;
+            existing_content.push_str(&source_content);
+            fs::write(&bashrc_path, existing_content).await?;
+        } else {
+            // Create new .bashrc
+            fs::write(&bashrc_path, source_content).await?;
+        }
+        
+        println!("📝 Added source line to .bashrc");
+    }
+    
+    println!("🐚 Bash shell integration installed successfully");
+    println!("   Function file: {}", bash_file_path.display());
+    println!("   Sourced from: {}", bashrc_path.display());
+    println!("   Usage: pm sw <project> will now change your shell directory");
+    
     Ok(())
 }
