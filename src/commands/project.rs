@@ -10,7 +10,7 @@ use chrono::Utc;
 use colored::*;
 use git2::Repository;
 use indicatif::{ProgressBar, ProgressStyle};
-use inquire::{Confirm, MultiSelect};
+use inquire::{Confirm, MultiSelect, Text};
 use octocrab::{Octocrab, params::users::repos::Type as RepoType, params::repos::Sort};
 use std::collections::HashSet;
 use std::fs;
@@ -36,67 +36,161 @@ pub struct GitHubRepo {
 pub async fn handle_add(
     path: &PathBuf,
     name: &Option<String>,
-    tags: &[String],
+    _tags: &[String], // Will be replaced with interactive selection
     description: &Option<String>,
 ) -> Result<()> {
     let mut config = load_config().await?;
-
-    let resolved_path = if path.is_absolute() {
-        path.clone()
-    } else {
-        std::env::current_dir()?.join(path)
+    
+    // Parse path patterns
+    let path_str = path.to_string_lossy().to_string();
+    let target_paths = match path_str.as_str() {
+        "." => vec![std::env::current_dir()?],
+        "*" => {
+            // Get all subdirectories in current directory
+            let current_dir = std::env::current_dir()?;
+            let mut subdirs = Vec::new();
+            
+            if let Ok(entries) = fs::read_dir(&current_dir) {
+                for entry in entries.flatten() {
+                    if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
+                        subdirs.push(entry.path());
+                    }
+                }
+            }
+            subdirs
+        }
+        _ => {
+            // Single path handling
+            let resolved_path = if path.is_absolute() {
+                path.clone()
+            } else {
+                std::env::current_dir()?.join(path)
+            };
+            vec![resolved_path]
+        }
     };
 
-    // Check if directory exists
-    let absolute_path = if !resolved_path.exists() {
-        // Directory doesn't exist - prompt user to create it
-        match handle_inquire_error(Confirm::new(&format!(
-            "Directory '{}' doesn't exist. Create it?",
-            resolved_path.display()
-        ))
-        .with_default(true)
-        .prompt()) {
-            Ok(create_dir) => {
-                if !create_dir {
-                    println!("❌ Directory creation cancelled. Project not added.");
+    let mut added_count = 0;
+    let mut skipped_count = 0;
+    let target_count = target_paths.len();
+
+    for (index, target_path) in target_paths.iter().enumerate() {
+        let result = process_single_add(&mut config, target_path, name, description, index + 1, target_count).await;
+        
+        match result {
+            Ok(AddResult::Added(project_name)) => {
+                added_count += 1;
+                if target_count == 1 {
+                    println!("✅ Successfully added project '{}'", project_name);
+                    println!("   Path: {}", target_path.display());
+                }
+            }
+            Ok(AddResult::Skipped) => {
+                skipped_count += 1;
+                if target_count == 1 {
+                    println!("ℹ️  Project already exists at this path");
                     return Ok(());
                 }
             }
-            Err(_) => {
-                return Ok(()); // User cancelled with Ctrl-C or other error
+            Ok(AddResult::Created(project_name)) => {
+                added_count += 1;
+                if target_count == 1 {
+                    println!("✅ Created and added project '{}'", project_name);
+                    println!("   Path: {}", target_path.display());
+                }
             }
+            Err(_) => {
+                if target_count == 1 {
+                    return result.map(|_| ());
+                }
+                skipped_count += 1;
+            }
+        }
+    }
+
+    // Summary for multiple operations
+    if target_count > 1 {
+        println!("✅ Processing {} directories...", target_count);
+        if added_count > 0 {
+            println!("   ✅ Added: {} projects", added_count);
+        }
+        if skipped_count > 0 {
+            println!("   ⏭️  Skipped: {} already registered", skipped_count);
+        }
+        println!("\n📊 Summary: {} added, {} skipped", added_count, skipped_count);
+    }
+
+    save_config(&config).await?;
+    Ok(())
+}
+
+#[derive(Debug)]
+enum AddResult {
+    Added(String),
+    Skipped,
+    Created(String),
+}
+
+async fn process_single_add(
+    config: &mut Config,
+    target_path: &Path,
+    name: &Option<String>,
+    description: &Option<String>,
+    current_index: usize,
+    total_count: usize,
+) -> Result<AddResult> {
+    // For multiple directories, show progress
+    if total_count > 1 {
+        println!("\n[{}/{}] Processing: {}", current_index, total_count, target_path.display());
+    }
+
+    let absolute_path = if !target_path.exists() {
+        // Directory doesn't exist - ask to create
+        let should_create = if total_count == 1 {
+            handle_inquire_error(Confirm::new(&format!(
+                "Directory '{}' doesn't exist. Create it?",
+                target_path.display()
+            ))
+            .with_default(true)
+            .prompt())?
+        } else {
+            // For batch operations, create directories by default
+            true
+        };
+
+        if !should_create {
+            return Err(anyhow::anyhow!("Directory creation cancelled"));
         }
 
         // Create the directory
-        fs::create_dir_all(&resolved_path)?;
-        println!("✅ Created directory: {}", resolved_path.display());
+        fs::create_dir_all(target_path)?;
+        if total_count == 1 {
+            println!("✅ Created directory: {}", target_path.display());
+        }
+        
+        // Ask about git initialization for single operations
+        if total_count == 1 {
+            let init_git = handle_inquire_error(Confirm::new(&format!(
+                "Initialize '{}' as a Git repository?",
+                target_path.display()
+            ))
+            .with_default(true)
+            .prompt())?;
 
-        // Now validate the created path
-        validate_path(&resolved_path)?
+            if init_git {
+                Repository::init(target_path)?;
+                println!("✅ Initialized Git repository in {}", target_path.display());
+            }
+        }
+
+        validate_path(target_path)?
     } else {
-        // Directory exists - validate it
-        validate_path(&resolved_path)?
+        validate_path(target_path)?
     };
 
     // Check for duplicate projects (path-based)
     if config.projects.values().any(|p| p.path == absolute_path) {
-        println!(
-            "ℹ️  Project already exists at this path: {}",
-            absolute_path.display()
-        );
-        if let Some(existing_project) = config.projects.values().find(|p| p.path == absolute_path) {
-            println!("   Project name: '{}'", existing_project.name);
-            println!(
-                "   Tags: {}",
-                if existing_project.tags.is_empty() {
-                    "none".to_string()
-                } else {
-                    existing_project.tags.join(", ")
-                }
-            );
-        }
-        println!("💡 Use 'pm project list' to see all projects");
-        return Ok(());
+        return Ok(AddResult::Skipped);
     }
 
     let project_name = name.clone().unwrap_or_else(|| {
@@ -107,38 +201,23 @@ pub async fn handle_add(
             .to_string()
     });
 
-    // Check for duplicate project names
-    if config.projects.values().any(|p| p.name == project_name) {
-        display_error(
-            ERROR_DUPLICATE_PROJECT,
-            &format!("with name '{}'", project_name),
-        );
-        display_info(&format!(
-            "Use a different name with: pm add {} --name <new-name>",
-            path.display()
-        ));
-        return Err(PmError::DuplicateProject.into());
-    }
-
-    println!(
-        "📂 Adding project '{}' at: {}",
-        project_name,
-        absolute_path.display()
-    );
+    // Interactive tag selection (only for single operations)
+    let selected_tags = if total_count == 1 {
+        select_tags_interactive(config).await?
+    } else {
+        Vec::new() // For batch operations, no tags by default
+    };
 
     let git_updated_at = match get_last_git_commit_time(&absolute_path) {
         Ok(time) => time,
-        Err(_) => {
-            println!("ℹ️  Not a Git repository (no .git directory found)");
-            None
-        }
+        Err(_) => None,
     };
 
     let project = Project {
         id: Uuid::new_v4(),
         name: project_name.clone(),
         path: absolute_path.clone(),
-        tags: tags.to_vec(),
+        tags: selected_tags,
         description: description.clone(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
@@ -146,20 +225,129 @@ pub async fn handle_add(
     };
 
     config.add_project(project);
-    save_config(&config).await?;
 
-    // Success message
-    println!("✅ Successfully added project '{}'", project_name);
-    if !tags.is_empty() {
-        println!("   Tags: {}", tags.join(", "));
+    if target_path.exists() {
+        Ok(AddResult::Added(project_name))
+    } else {
+        Ok(AddResult::Created(project_name))
     }
-    if let Some(desc) = description {
-        println!("   Description: {}", desc);
-    }
-    println!("   Path: {}", absolute_path.display());
-
-    Ok(())
 }
+
+async fn select_tags_interactive(config: &Config) -> Result<Vec<String>> {
+    // Collect all existing tags with usage counts
+    let mut tag_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for project in config.projects.values() {
+        for tag in &project.tags {
+            *tag_counts.entry(tag.clone()).or_insert(0) += 1;
+        }
+    }
+
+    // Sort tags by usage count (descending)
+    let mut sorted_tags: Vec<(String, usize)> = tag_counts.into_iter().collect();
+    sorted_tags.sort_by(|a, b| b.1.cmp(&a.1));
+
+    // Create initial text input for tag search/creation
+    let initial_input = handle_inquire_error(
+        Text::new("🏷️  Tags:")
+            .with_help_message("Type tag name to search/create, space for multiple, Enter to confirm")
+            .with_default("")
+            .prompt()
+    )?;
+
+    // Parse the input
+    let input_tags: Vec<String> = if initial_input.trim().is_empty() {
+        Vec::new()
+    } else {
+        initial_input
+            .split_whitespace()
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty())
+            .collect()
+    };
+
+    // If no input provided, show MultiSelect for existing tags
+    if input_tags.is_empty() && !sorted_tags.is_empty() {
+        let existing_options: Vec<String> = sorted_tags.iter()
+            .map(|(tag, count)| format!("{} ({} projects)", tag, count))
+            .collect();
+
+        let selections = handle_inquire_error(
+            MultiSelect::new("Select from existing tags:", existing_options)
+                .with_help_message("Space to select • Enter to confirm • Ctrl+C to skip")
+                .prompt()
+        )?;
+
+        let selected_tags: Vec<String> = selections.iter()
+            .map(|selection| {
+                selection.split(" (").next().unwrap_or(selection).to_string()
+            })
+            .collect();
+
+        return Ok(selected_tags);
+    }
+
+    // Validate and process input tags
+    let mut final_tags = Vec::new();
+    let mut new_tags = Vec::new();
+    let mut existing_matches = Vec::new();
+
+    for input_tag in input_tags {
+        // Check if tag exists (fuzzy match)
+        let mut found_match = false;
+        for (existing_tag, count) in &sorted_tags {
+            if existing_tag.to_lowercase() == input_tag 
+                || existing_tag.to_lowercase().starts_with(&input_tag)
+                || input_tag.len() >= 3 && existing_tag.to_lowercase().contains(&input_tag) {
+                
+                existing_matches.push((existing_tag.clone(), *count, input_tag.clone()));
+                found_match = true;
+                break;
+            }
+        }
+
+        if !found_match {
+            new_tags.push(input_tag);
+        }
+    }
+
+    // Handle existing tag matches
+    if !existing_matches.is_empty() {
+        println!("\n📋 Found matching existing tags:");
+        for (existing_tag, count, input) in existing_matches {
+            println!("  {} → {} ({} projects)", input, existing_tag, count);
+            final_tags.push(existing_tag);
+        }
+    }
+
+    // Handle new tags
+    if !new_tags.is_empty() {
+        println!("\n✨ New tags to create:");
+        for tag in &new_tags {
+            println!("  {}", tag);
+        }
+        
+        let confirm_new = handle_inquire_error(
+            Confirm::new("Create these new tags?")
+                .with_default(true)
+                .prompt()
+        )?;
+
+        if confirm_new {
+            final_tags.extend(new_tags);
+        }
+    }
+
+    // Remove duplicates while preserving order
+    let mut unique_tags = Vec::new();
+    for tag in final_tags {
+        if !unique_tags.contains(&tag) {
+            unique_tags.push(tag);
+        }
+    }
+
+    Ok(unique_tags)
+}
+
 
 pub async fn handle_list(
     tags: &[String],
@@ -257,15 +445,27 @@ pub async fn handle_switch(config: &mut Config, name: &str, no_editor: bool) -> 
         display_switch_success(&project_path, no_editor);
 
         if !no_editor {
-            let mut cmd = std::process::Command::new(DEFAULT_EDITOR);
-            match cmd.status() {
-                Ok(status) => {
-                    if !status.success() {
-                        display_warning(&format!("Editor exited with status: {}", status));
-                    }
+            let editor = if config.editor.is_empty() {
+                std::env::var("EDITOR").unwrap_or_else(|_| DEFAULT_EDITOR.to_string())
+            } else {
+                config.editor.clone()
+            };
+
+            println!("🚀 Opening {} in {}", project_name, editor);
+            let mut cmd = std::process::Command::new(&editor);
+            cmd.arg(".");
+
+            // Spawn the editor process without waiting
+            match cmd.spawn() {
+                Ok(_) => {
+                    // Editor launched successfully
                 }
                 Err(e) => {
-                    display_editor_error(&e.to_string());
+                    display_error(
+                        "Failed to open editor",
+                        &format!("{}: {}", editor, e),
+                    );
+                    display_suggestions(&vec!["pm config set editor hx".to_string(), "pm config set editor code".to_string(), "pm config set editor vim".to_string()]);
                 }
             }
         }
@@ -947,7 +1147,7 @@ async fn load_repository_internal(repo: &str, directory: Option<&Path>, show_pro
         (current_user, repo.to_string())
     };
 
-    let config = load_config().await?;
+    let _config = load_config().await?;
 
     // Determine target directory
     let target_dir = if let Some(dir) = directory {

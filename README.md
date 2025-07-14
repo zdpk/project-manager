@@ -61,26 +61,32 @@ cargo install --path .
 # Interactive initialization - sets up PM configuration
 pm init
 
-# Add a project
-pm project add ~/workspace/my-project --tags rust,backend
+# Add a project (with interactive tag selection)
+pm add ~/my-projects/awesome-app
+
+# Add current directory with enhanced experience
+pm add .
+
+# Add all subdirectories in current folder
+pm add *
 
 # Scan for existing repositories
-pm github scan
+pm scan
 
 # Clone GitHub repositories (interactive browse)
-pm github clone
+pm clone
 
 # List all projects
-pm project list
+pm list
 
 # List projects with filters (aliases work too)
-pm p ls --tags rust --recent 7d --limit 10
+pm ls --tags rust --recent 7d --limit 10
 
 # Switch to a project (opens editor automatically)
-pm project switch my-project
+pm switch my-project
 
-# Switch without opening editor (aliases work too)
-pm p s my-project --no-editor
+# Switch without opening editor (using alias)
+pm sw my-project --no-editor
 ```
 
 ### Initial Setup Example
@@ -96,26 +102,23 @@ $ pm init
 > Use detected GitHub username 'your-username'? Yes
 > Configuration directory: ~/.config/pm
   Where PM configuration files will be stored (press Enter for default)
-> Projects root directory: ~/workspace  
-  Where your projects will be stored (press Enter for default)
 > Choose your preferred editor: hx (Helix)
 > Automatically open editor when switching to projects? Yes
 > Show git status in project listings? Yes
 
 📂 Creating configuration directory: /Users/you/.config/pm
-📁 Creating projects root directory: /Users/you/workspace
 
 ✅ PM initialized successfully
 👤 GitHub username: your-username
 📂 Config directory: /Users/you/.config/pm
-📁 Projects root: /Users/you/workspace
 ⚙️ Config file: /Users/you/.config/pm/config.yml
 
 🎯 Next steps:
-  pm project add <path>          # Add your first project
-  pm github scan                 # Scan for existing repositories
-  pm github clone <owner>/<repo> # Clone specific repository
-  pm github clone                # Browse and select repositories
+  pm add .                       # Add current directory with interactive tags
+  pm add *                       # Add all subdirectories
+  pm scan                        # Scan for existing repositories
+  pm clone <owner>/<repo>        # Clone specific repository
+  pm clone                       # Browse and select repositories
 
 📖 Use 'pm --help' to see all available commands
 ```
@@ -127,43 +130,118 @@ $ pm init
 ### Project Management
 
 ```bash
-# Add projects
-pm project add <path>                           # Add current or specified directory
-pm project add . --name "My Project" --tags web,frontend
-pm p add ~/code/api --description "REST API service"  # Using alias
+# Add projects with interactive tag selection
+pm add <path>                                   # Add specific directory
+pm add . --name "My Project"                   # Add current directory with custom name
+pm add ~/code/api --description "REST API"     # Add with description
+pm add *                                        # Add all subdirectories (batch mode)
 
 # List projects
-pm project list                                 # List all projects
-pm p ls --tags rust,backend                    # Filter by tags (AND logic) 
-pm p ls --tags-any frontend,web                # Filter by tags (OR logic)
-pm p ls --recent 7d                             # Show recent activity (7 days)
-pm p ls --detailed                              # Show detailed information
+pm list                                         # List all projects
+pm ls --tags rust,backend                      # Filter by tags (AND logic) 
+pm ls --tags-any frontend,web                  # Filter by tags (OR logic)
+pm ls --recent 7d                               # Show recent activity (7 days)
+pm ls --detailed                                # Show detailed information
 
 # Switch projects
-pm project switch <name>                        # Switch and open editor
-pm p s <name> --no-editor                      # Switch without editor (alias)
+pm switch <name>                                # Switch and open editor
+pm sw <name> --no-editor                       # Switch without editor (alias)
 ```
 
 ### GitHub Integration
 
 ```bash
 # Clone repositories (interactive browse or direct)
-pm github clone                               # Interactive browse your repositories
-pm gh clone microsoft/vscode                  # Clone specific repository
-pm gh clone owner/repo --directory ~/custom   # Clone to custom directory
+pm clone                                      # Interactive browse your repositories
+pm clone microsoft/vscode                    # Clone specific repository
+pm clone owner/repo --directory ~/custom     # Clone to custom directory
 
 # Scan for repositories
-pm github scan                                # Scan default workspace
-pm gh scan ~/Development                      # Scan specific directory
-pm gh scan --show-all                        # Show all found repositories
+pm scan                                       # Scan current directory
+pm scan ~/Development                        # Scan specific directory
+pm scan --show-all                           # Show all found repositories
+```
+
+### Interactive Tag Selection
+
+When adding projects, PM provides a flexible tag input interface:
+
+```
+🏷️  Tags: _____ 
+
+Type tag name to search/create, space for multiple, Enter to confirm
+```
+
+**Key Features:**
+- **⚡ Direct input**: Type tags directly with space separation
+- **🔍 Fuzzy matching**: Smart matching against existing tags
+- **📊 Usage insights**: See tag popularity when browsing
+- **🎯 Multi-input**: `rust backend api` creates/matches multiple tags
+- **✨ Browse mode**: Empty input → browse existing tags
+
+**Example Workflows:**
+
+**Direct tag input (recommended):**
+```bash
+$ pm add ./my-rust-api
+
+🏷️  Tags: rust backend api
+
+📋 Found matching existing tags:
+  rust → rust (15 projects)
+  backend → backend (18 projects)
+
+✨ New tags to create:
+  api
+
+Create these new tags? Yes
+
+✅ Added project 'my-rust-api' with tags: rust, backend, api
+```
+
+**Browse existing tags:**
+```bash
+$ pm add ./existing-project
+
+🏷️  Tags: [just press Enter]
+
+Select from existing tags:
+[ ] rust (15 projects)
+[ ] backend (18 projects)
+[x] frontend (12 projects)
+[x] react (8 projects)
+
+✅ Added project 'existing-project' with tags: frontend, react
+```
+
+**Fuzzy matching:**
+```bash
+$ pm add ./web-app
+
+🏷️  Tags: front typ
+
+📋 Found matching existing tags:
+  front → frontend (12 projects)
+  typ → typescript (6 projects)
+
+✅ Added project 'web-app' with tags: frontend, typescript
+```
+
+**No tags:**
+```bash
+$ pm add ./simple-script
+
+🏷️  Tags: [just press Enter, then Enter again in browse mode]
+
+✅ Added project 'simple-script' with no tags
 ```
 
 ### Tag Management
 
 ```bash
-# Manage tags
+# Manage tags manually
 pm tag add <project> <tags...>         # Add tags to project
-pm tag remove <project> <tags...>      # Remove tags from project
+pm tag remove <project> <tags...>      # Remove tags from project  
 pm tag list                            # List all available tags
 pm tag show [project]                  # Show tags for project
 ```
@@ -205,7 +283,6 @@ PM stores its configuration in a configurable location (default: `~/.config/pm/c
 
 - **GitHub username**: For repository cloning and GitHub integration
 - **Configuration path**: Where PM stores its configuration files (configurable during init)
-- **Projects root directory**: Where your projects are located
 - **Editor preference**: Your preferred code editor
 - **Application settings**: Auto-open editor, show git status, etc.
 - **Project data**: All managed projects and their metadata
@@ -217,7 +294,6 @@ PM stores its configuration in a configurable location (default: `~/.config/pm/c
 version: "1.0"
 github_username: "your-username"
 config_path: "/Users/you/.config/pm"
-projects_root_dir: "/Users/you/workspace"
 editor: "hx"
 settings:
   auto_open_editor: false
@@ -232,7 +308,6 @@ machine_metadata: {}
 During `pm init`, you can customize:
 
 - **Configuration Directory**: Where PM stores its files (default: `~/.config/pm`)
-- **Projects Root Directory**: Where your projects will be stored (default: `~/workspace`)
 - **Editor**: Your preferred code editor (VS Code, Helix, Vim, etc.)
 - **Auto-open Editor**: Whether to automatically open editor when switching projects
 - **Git Status Display**: Whether to show git status information in project listings
