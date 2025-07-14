@@ -1298,3 +1298,209 @@ fn contains_project_files(path: &Path) -> bool {
         .iter()
         .any(|&file| path.join(file).exists())
 }
+
+// Project removal functionality
+
+pub async fn handle_remove(name: Option<&str>, skip_confirm: bool) -> Result<()> {
+    let mut config = load_config().await?;
+    
+    let project_to_remove = match name {
+        Some(name) => {
+            let matches = find_projects_by_name(&config, name);
+            
+            match matches.len() {
+                0 => {
+                    println!("❌ No project found with name: {}", name);
+                    suggest_similar_names(&config, name);
+                    return Ok(());
+                },
+                1 => matches.into_iter().next().unwrap(),
+                _ => {
+                    // Multiple projects with same name - let user choose
+                    select_from_duplicates(matches, &config).await?
+                }
+            }
+        },
+        None => {
+            // Interactive mode - show all projects
+            match select_project_interactively(&config).await? {
+                Some(project) => project,
+                None => return Ok(()), // User cancelled
+            }
+        }
+    };
+    
+    // Confirm removal
+    if confirm_removal(&project_to_remove, &config, skip_confirm).await? {
+        config.remove_project(project_to_remove.id)?;
+        save_config(&config).await?;
+        
+        println!("✅ Project '{}' removed successfully", project_to_remove.name);
+    } else {
+        println!("❌ Removal cancelled");
+    }
+    
+    Ok(())
+}
+
+fn find_projects_by_name(config: &Config, name: &str) -> Vec<Project> {
+    config.projects.values()
+        .filter(|p| p.name == name)
+        .cloned()
+        .collect()
+}
+
+async fn select_project_interactively(config: &Config) -> Result<Option<Project>> {
+    let mut projects: Vec<Project> = config.projects.values().cloned().collect();
+    
+    if projects.is_empty() {
+        println!("📋 No projects found to remove");
+        return Ok(None);
+    }
+    
+    // Sort projects by name for better UX
+    projects.sort_by(|a, b| a.name.cmp(&b.name));
+    
+    // Create display options with name, path, and tags
+    let options: Vec<String> = projects.iter()
+        .map(|p| {
+            let tags_display = if p.tags.is_empty() {
+                String::new()
+            } else {
+                format!(" [{}]", p.tags.join(", "))
+            };
+            
+            format!("{} - {}{}", 
+                p.name, 
+                p.path.display(),
+                tags_display
+            )
+        })
+        .collect();
+    
+    let selection = handle_inquire_error(
+        Select::new("🗑️ Select project to remove:", options.clone())
+            .with_help_message("↑↓ navigate • Enter to select • Ctrl+C to cancel • Type to filter")
+            .with_page_size(15)
+            .prompt()
+    )?;
+    
+    // Find selected project by matching the display string
+    let selected_index = options.iter()
+        .position(|opt| opt == &selection)
+        .unwrap();
+        
+    Ok(Some(projects[selected_index].clone()))
+}
+
+async fn select_from_duplicates(projects: Vec<Project>, config: &Config) -> Result<Project> {
+    println!("🔍 Multiple projects found with the same name:");
+    
+    // Show more detailed info for duplicates
+    let options: Vec<String> = projects.iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let tags_display = if p.tags.is_empty() {
+                String::new()
+            } else {
+                format!(" [{}]", p.tags.join(", "))
+            };
+            
+            let access_info = {
+                // Get access statistics if available
+                let (_, access_count) = config.get_project_access_info(p.id);
+                if access_count > 0 {
+                    format!(" (accessed {} times)", access_count)
+                } else {
+                    String::new()
+                }
+            };
+            
+            format!("{}. {} - {}{}{}", 
+                i + 1,
+                p.name,
+                p.path.display(),
+                tags_display,
+                access_info
+            )
+        })
+        .collect();
+    
+    let selection = handle_inquire_error(
+        Select::new("Select which project to remove:", options.clone())
+            .with_help_message("These projects have the same name but different paths")
+            .prompt()
+    )?;
+    
+    // Find selected project
+    let selected_index = options.iter()
+        .position(|opt| opt == &selection)
+        .unwrap();
+        
+    Ok(projects[selected_index].clone())
+}
+
+fn suggest_similar_names(config: &Config, query: &str) {
+    let suggestions: Vec<String> = config.projects.values()
+        .map(|p| &p.name)
+        .filter(|name| {
+            // Simple fuzzy matching
+            let query_lower = query.to_lowercase();
+            let name_lower = name.to_lowercase();
+            
+            name_lower.contains(&query_lower) ||
+            query_lower.contains(&name_lower)
+        })
+        .take(3)
+        .cloned()
+        .collect();
+    
+    if !suggestions.is_empty() {
+        println!("💡 Did you mean one of these?");
+        for suggestion in suggestions {
+            println!("   pm rm {}", suggestion);
+        }
+    } else {
+        println!("💡 Use 'pm ls' to see all available projects");
+    }
+}
+
+async fn confirm_removal(project: &Project, config: &Config, skip_confirm: bool) -> Result<bool> {
+    if skip_confirm {
+        return Ok(true);
+    }
+    
+    println!();
+    println!("🗑️ About to remove project:");
+    println!("   Name: {}", project.name);
+    println!("   Path: {}", project.path.display());
+    
+    if !project.tags.is_empty() {
+        println!("   Tags: {}", project.tags.join(", "));
+    }
+    
+    if let Some(desc) = &project.description {
+        println!("   Description: {}", desc);
+    }
+    
+    // Show access statistics
+    let (last_accessed, access_count) = config.get_project_access_info(project.id);
+    if access_count > 0 {
+        println!("   Accessed: {} times", access_count);
+        if let Some(last_time) = last_accessed {
+            println!("   Last used: {}", crate::display::format_relative_time(last_time));
+        }
+    }
+    
+    println!("   Created: {}", project.created_at.format("%Y-%m-%d %H:%M"));
+    
+    println!();
+    
+    let confirmed = handle_inquire_error(
+        Confirm::new("Are you sure you want to remove this project?")
+            .with_default(false)
+            .prompt()
+    )?;
+    
+    Ok(confirmed)
+}

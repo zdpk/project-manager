@@ -283,6 +283,62 @@ pm sw my-project                               # Switch using alias
 *   Records project access for usage tracking
 *   Provides suggestions for similar project names if not found
 
+### `pm remove` (alias: `pm rm`)
+
+Removes projects from PM's management list with interactive confirmation and smart matching.
+
+**Usage:**
+
+```bash
+pm rm                                           # Interactive project selection
+pm rm my-project                                # Remove project by name
+pm rm my-project -y                             # Remove without confirmation
+```
+
+**Arguments:**
+
+*   `<PROJECT>`: Project name (optional for interactive mode)
+
+**Options:**
+
+*   `-y, --yes`: Skip confirmation prompt
+
+**Interactive Features:**
+
+*   **Project Selection**: When no project name is provided, shows a filterable list of all projects
+*   **Duplicate Resolution**: When multiple projects have the same name, shows detailed selection with paths and access statistics
+*   **Smart Suggestions**: Suggests similar project names when exact match is not found
+*   **Confirmation Prompt**: Shows comprehensive project details before removal
+
+**Behavior:**
+
+*   Matches projects by exact name only (no path matching)
+*   Handles duplicate project names with interactive selection
+*   Shows project details including path, tags, description, and access statistics
+*   Removes project from configuration and cleans up all machine metadata
+*   Provides confirmation prompt unless `-y` flag is used
+
+**Example Interactive Flow:**
+
+```bash
+$ pm rm api
+🔍 Multiple projects found with the same name:
+? Select which project to remove:
+  > 1. api - /Users/me/work/api [backend, rust] (accessed 15 times)
+    2. api - /Users/me/personal/api [frontend, react] (accessed 3 times)
+
+🗑️ About to remove project:
+   Name: api
+   Path: /Users/me/work/api
+   Tags: backend, rust
+   Accessed: 15 times
+   Last used: 2 hours ago
+   Created: 2024-01-15 14:30
+
+? Are you sure you want to remove this project? Yes
+✅ Project 'api' removed successfully
+```
+
 ### `pm tag` (alias: `pm t`)
 
 Manages tags associated with your projects.
@@ -448,6 +504,7 @@ pm config set settings.show_git_status true # Set specific value
 | `pm add` | `pm a` | Add projects with interactive tag selection |
 | `pm list` | `pm ls` | List managed projects |
 | `pm switch` | `pm sw` | Switch to project directory |
+| `pm remove` | `pm rm` | Remove projects from PM |
 | `pm clone` | `pm cl` | Clone GitHub repositories |
 | `pm scan` | `pm sc` | Scan for existing repositories |
 | `pm tag` | `pm t` | Manage project tags |

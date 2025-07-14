@@ -149,6 +149,11 @@ pm ls --detailed                                # Show detailed information
 # Switch projects (alias: sw)
 pm switch <name>                                # Switch to project directory
 pm sw <name>                                    # Switch to project (alias)
+
+# Remove projects (alias: rm)
+pm rm                                           # Interactive project selection
+pm rm <name>                                    # Remove project by name
+pm rm <name> -y                                 # Remove without confirmation
 ```
 
 ### GitHub Integration
