@@ -76,6 +76,9 @@ pm scan
 # Clone GitHub repositories (interactive browse)
 pm clone
 
+# Clone specific repository
+pm clone owner/repo
+
 # List all projects
 pm list
 
@@ -107,7 +110,6 @@ $ pm init
 📂 Creating configuration directory: /Users/you/.config/pm
 
 ✅ PM initialized successfully
-👤 GitHub username: your-username
 📂 Config directory: /Users/you/.config/pm
 ⚙️ Config file: /Users/you/.config/pm/config.yml
 
@@ -125,23 +127,26 @@ $ pm init
 
 ## Command Reference
 
+All commands support aliases shown in parentheses. Use `pm --help` for complete usage information.
+
 ### Project Management
 
 ```bash
-# Add projects with intuitive two-step tag selection
+# Add projects with intuitive two-step tag selection (alias: a)
 pm add <path>                                   # Add specific directory
 pm add . --name "My Project"                   # Add current directory with custom name
 pm add ~/code/api --description "REST API"     # Add with description
 pm add *                                        # Add all subdirectories (batch mode)
+pm add my-project                               # Create and add new project
 
-# List projects
+# List projects (alias: ls)
 pm list                                         # List all projects
 pm ls --tags rust,backend                      # Filter by tags (AND logic) 
 pm ls --tags-any frontend,web                  # Filter by tags (OR logic)
 pm ls --recent 7d                               # Show recent activity (7 days)
 pm ls --detailed                                # Show detailed information
 
-# Switch projects
+# Switch projects (alias: sw)
 pm switch <name>                                # Switch to project directory
 pm sw <name>                                    # Switch to project (alias)
 ```
@@ -149,15 +154,15 @@ pm sw <name>                                    # Switch to project (alias)
 ### GitHub Integration
 
 ```bash
-# Clone repositories (interactive browse or direct)
-pm clone                                      # Interactive browse your repositories
-pm clone microsoft/vscode                    # Clone specific repository
-pm clone owner/repo --directory ~/custom     # Clone to custom directory
+# Clone repositories (alias: cl)
+pm clone                                        # Interactive browse your repositories
+pm clone microsoft/vscode                      # Clone specific repository
+pm clone owner/repo --directory ~/custom       # Clone to custom directory
 
-# Scan for repositories
-pm scan                                       # Scan current directory
-pm scan ~/Development                        # Scan specific directory
-pm scan --show-all                           # Show all found repositories
+# Scan for repositories (alias: sc)
+pm scan                                         # Scan current directory
+pm scan ~/Development                           # Scan specific directory
+pm scan --show-all                             # Show all found repositories
 ```
 
 ### Two-Step Tag Selection Interface
@@ -207,17 +212,17 @@ For more detailed examples and workflows, see [TAG_SELECTION_GUIDE.md](docs/TAG_
 ### Tag Management
 
 ```bash
-# Manage tags manually
-pm tag add <project> <tags...>         # Add tags to project
-pm tag remove <project> <tags...>      # Remove tags from project  
-pm tag list                            # List all available tags
-pm tag show [project]                  # Show tags for project
+# Manage tags (alias: t)
+pm tag add <project> <tags...>                 # Add tags to project
+pm tag remove <project> <tags...>              # Remove tags from project
+pm tag list                                     # List all available tags
+pm tag show [project]                          # Show tags for project
 ```
 
 ### Configuration
 
 ```bash
-# View and edit configuration
+# View and edit configuration (alias: cf)
 pm config                              # Show current configuration (default)
 pm config show                         # Show current configuration  
 pm config edit                         # Edit configuration file
@@ -250,7 +255,6 @@ pm config history --limit 10           # Show configuration history
 
 PM stores its configuration in a configurable location (default: `~/.config/pm/config.yml`). The configuration includes:
 
-- **GitHub username**: For repository cloning and GitHub integration
 - **Configuration path**: Where PM stores its configuration files (configurable during init)
 - **Application settings**: Show git status, recent projects limit, etc.
 - **Project data**: All managed projects and their metadata
@@ -260,7 +264,6 @@ PM stores its configuration in a configurable location (default: `~/.config/pm/c
 
 ```yaml
 version: "1.0"
-github_username: "your-username"
 config_path: "/Users/you/.config/pm"
 settings:
   show_git_status: true

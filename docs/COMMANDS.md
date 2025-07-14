@@ -27,9 +27,7 @@ PM will guide you through setting up:
 
 1. **GitHub username**: Automatically detected from GitHub CLI, with manual fallback
 2. **Configuration directory**: Where PM stores its configuration files (default: `~/.config/pm`)
-3. **Editor preference**: Your preferred code editor (VS Code, Helix, Vim, etc.)
-4. **Auto-open editor**: Whether to automatically open editor when switching projects
-5. **Git status display**: Whether to show git status information in project listings
+3. **Git status display**: Whether to show git status information in project listings
 
 **GitHub Username Detection:**
 - PM automatically detects your GitHub username using `gh api user`
@@ -48,8 +46,6 @@ $ pm init
 > Use detected GitHub username 'your-username'? Yes
 > Configuration directory: ~/.config/pm
   Where PM configuration files will be stored (press Enter for default)
-> Choose your preferred editor: hx (Helix)
-> Automatically open editor when switching to projects? Yes
 > Show git status in project listings? Yes
 
 📂 Creating configuration directory: /Users/you/.config/pm
@@ -210,6 +206,11 @@ For `pm add *`, the process is streamlined:
 - Skips interactive tagging for efficiency
 - Provides comprehensive summary of results
 
+**Interactive Features:**
+*   **Tag Selection**: For single operations, interactive tag selection with existing tags + ability to create new ones
+*   **Directory Creation**: Prompts to create directories that don't exist
+*   **Duplicate Handling**: Skips already registered projects
+
 **Behavior:**
 
 *   Resolves paths relative to current working directory
@@ -263,28 +264,23 @@ my-script           /Users/you/scripts/my-script             ❌    [python]    
 
 ### `pm switch` (alias: `pm sw`)
 
-Switches to a specified project's directory and optionally opens an editor.
+Switches to a specified project's directory.
 
 **Usage:**
 
 ```bash
-pm switch my-project                            # Switch and open editor
-pm sw my-project --no-editor                   # Switch without opening editor
+pm switch my-project                            # Switch to project directory
+pm sw my-project                               # Switch using alias
 ```
 
 **Arguments:**
 
 *   `<NAME>`: Project name to switch to
 
-**Options:**
-
-*   `--no-editor`: Prevents PM from opening the configured editor
-
 **Behavior:**
 
 *   Changes the current working directory to the project's path
 *   Records project access for usage tracking
-*   Opens configured editor (respects `config.editor`, `EDITOR` env var, or defaults to `hx`)
 *   Provides suggestions for similar project names if not found
 
 ### `pm tag` (alias: `pm t`)
@@ -428,8 +424,8 @@ pm config                              # Show current configuration (default)
 pm config show                         # Show current configuration
 pm config edit                         # Edit in your preferred editor
 pm config validate                     # Validate configuration file
-pm config get editor                   # Get specific value
-pm config set editor hx                # Set specific value
+pm config get settings.show_git_status # Get specific value
+pm config set settings.show_git_status true # Set specific value
 ```
 
 **Subcommands:**
@@ -499,7 +495,6 @@ PM automatically:
 - Utilize filtering options in `pm list` for project discovery
 
 ### Workflow Integration
-- Configure auto-open editor for seamless project switching
 - Use aliases (`pm ls`, `pm sw`) for faster command execution
 - Set up meaningful project descriptions for better organization
 - Regularly backup configuration with `pm config backup`
