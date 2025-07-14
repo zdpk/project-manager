@@ -91,9 +91,9 @@ enum Commands {
         #[arg(short = 'l', long)]
         limit: Option<usize>,
 
-        /// Show detailed information
-        #[arg(short = 'd', long)]
-        detailed: bool,
+        /// Show verbose information
+        #[arg(short = 'v', long)]
+        verbose: bool,
     },
 
     /// Switch to a project directory (alias: sw)
@@ -406,9 +406,9 @@ async fn main() {
             tags_any,
             recent,
             limit,
-            detailed,
+            verbose,
         } => {
-            if let Err(e) = project::handle_list(tags, tags_any, recent, limit, *detailed).await {
+            if let Err(e) = project::handle_list(tags, tags_any, recent, limit, *verbose).await {
                 handle_config_error(e);
             }
         }

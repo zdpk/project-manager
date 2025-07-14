@@ -352,7 +352,7 @@ pub async fn handle_list(
     tags_any: &[String],
     recent: &Option<String>,
     limit: &Option<usize>,
-    detailed: bool,
+    verbose: bool,
 ) -> Result<()> {
     let config = load_config().await?;
 
@@ -387,7 +387,7 @@ pub async fn handle_list(
     display_project_list_header(limited_project_data.len());
 
     for (project, last_accessed, access_count) in limited_project_data {
-        if detailed {
+        if verbose {
             display_project_detailed(&project, last_accessed, access_count);
         } else {
             display_project_simple(&project, last_accessed);
