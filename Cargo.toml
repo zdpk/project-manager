@@ -11,7 +11,7 @@ categories = ["command-line-utilities", "development-tools"]
 
 [features]
 default = []
-dev-mode = []
+dev = []
 
 [[bin]]
 name = "pm"
@@ -20,7 +20,7 @@ path = "src/main.rs"
 [[bin]]
 name = "_pm"
 path = "src/main.rs"
-required-features = ["dev-mode"]
+required-features = ["dev"]
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
