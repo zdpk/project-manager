@@ -136,6 +136,11 @@ pub async fn handle_init(
     if dev {
         setup_dev_environment().await?;
     }
+    
+    // Step 8: Starship integration suggestion
+    if !skip && !replace {
+        setup_starship_integration_suggestion().await?;
+    }
 
     // Show next steps for using PM
     println!("\n🎯 Next steps:");
@@ -147,6 +152,7 @@ pub async fn handle_init(
     if dev {
         println!("\n🔧 Development mode enabled:");
         println!("  _PM_BINARY environment variable configured in shell files");
+        println!("  _pm shell integration installed for development");
         println!("  Use current development binary for testing");
     }
     
@@ -227,8 +233,86 @@ async fn setup_dev_environment() -> Result<()> {
         println!("   export _PM_BINARY=\"{}\"", dev_binary_path.display());
     }
     
+    // Setup development shell integration for _pm
+    println!("\n🔧 Setting up development shell integration...");
+    if let Err(e) = shell_integration::setup_dev_shell_integration().await {
+        display_warning(&format!("Failed to setup development shell integration: {}", e));
+        println!("💡 You can manually setup _pm shell function later");
+    } else {
+        println!("✅ Development shell integration installed");
+        println!("   You can now use '_pm' command for development");
+    }
+    
     println!("✅ Development environment configured");
     println!("   _PM_BINARY set to: {}", dev_binary_path.display());
+    
+    Ok(())
+}
+
+/// Setup Starship integration suggestion during init
+async fn setup_starship_integration_suggestion() -> Result<()> {
+    use std::process::Command;
+    
+    println!("\n🌟 Starship Prompt Integration");
+    
+    // Check if starship is installed
+    let starship_installed = Command::new("starship")
+        .arg("--version")
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+    
+    if !starship_installed {
+        println!("💡 Starship is not installed. PM can integrate with Starship to show project info in your prompt.");
+        println!("   Install Starship: https://starship.rs/guide/#installation");
+        println!("   Then run: pm starship");
+        return Ok(());
+    }
+    
+    println!("✅ Starship is installed!");
+    
+    // Check if PM configuration already exists in starship.toml
+    let starship_config_path = dirs::home_dir()
+        .map(|home| home.join(".config/starship.toml"))
+        .unwrap_or_default();
+    
+    let pm_already_configured = if starship_config_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&starship_config_path) {
+            content.contains("[custom.pm")
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+    
+    if pm_already_configured {
+        println!("✅ PM configuration already found in starship.toml");
+        return Ok(());
+    }
+    
+    // Offer to set up Starship integration
+    let setup_starship = handle_inquire_error(
+        Confirm::new("Would you like to set up Starship integration now?")
+            .with_default(true)
+            .with_help_message("This will generate configuration to show PM project info in your prompt")
+            .prompt()
+    )?;
+    
+    if setup_starship {
+        println!("\n🚀 Setting up Starship integration...");
+        
+        // Use the starship command to generate configuration
+        if let Err(e) = crate::commands::starship::handle_starship("basic", false, false).await {
+            println!("❌ Failed to setup Starship integration: {}", e);
+            println!("💡 You can set it up later with: pm starship");
+        } else {
+            println!("✅ Starship integration configured!");
+            println!("💡 Restart your shell to see PM project info in your prompt");
+        }
+    } else {
+        println!("💡 You can set up Starship integration later with: pm starship");
+    }
     
     Ok(())
 }

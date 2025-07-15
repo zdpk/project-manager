@@ -13,6 +13,7 @@ A fast, terminal-based project management CLI tool written in Rust. PM helps dev
 - **Machine-Specific Metadata**: Track project access and usage across different machines
 - **Fast Directory Switching**: Instant navigation to project directories
 - **Shell Integration**: Automatic shell setup for Fish, Bash, and Zsh with directory changing
+- **Starship Prompt Integration**: Show project info in your terminal prompt with one command
 - **Rich CLI Interface**: Colorful output with progress indicators and interactive prompts
 
 ## Installation
@@ -91,6 +92,9 @@ pm switch my-project
 
 # Using alias
 pm sw my-project
+
+# Set up Starship prompt integration (shows project info in terminal prompt)
+pm starship
 ```
 
 ### Initial Setup Example
@@ -113,6 +117,17 @@ $ pm init
 ✅ PM initialized successfully
 📂 Config directory: /Users/you/.config/pm
 ⚙️ Config file: /Users/you/.config/pm/config.yml
+
+🌟 Starship Prompt Integration
+✅ Starship is installed!
+Would you like to set up Starship integration now? › Yes
+
+🚀 Setting up Starship integration...
+✅ Starship configuration copied to clipboard!
+📝 Add this to your ~/.config/starship.toml file
+
+✅ Starship integration configured!
+💡 Restart your shell to see PM project info in your prompt
 
 🎯 Next steps:
   pm add .                       # Add current directory with interactive tags
@@ -356,6 +371,51 @@ alias pma="pm add ."
 ### Multiple Machine Sync
 
 PM automatically tracks which machine you last accessed each project on, making it easy to work across multiple development environments.
+
+### Starship Prompt Integration
+
+PM integrates seamlessly with [Starship](https://starship.rs/) to show project information in your terminal prompt. 
+
+#### Quick Setup
+
+```bash
+# Use PM's built-in helper to set up Starship integration
+pm starship
+
+# Interactive configuration wizard will guide you through:
+# 1. Style selection (minimal, basic, detailed)
+# 2. Icon preferences (emoji or text)
+# 3. Color theme selection
+# 4. Automatic clipboard copy of configuration
+```
+
+#### Manual Setup
+
+Add this to your `~/.config/starship.toml`:
+
+```toml
+[custom.pm]
+command = 'pm status --format json --quiet | jq -r "
+  if .git_branch != \"\" then
+    if .git_changes then .name + \" [\" + .git_branch + \"*]\"
+    else .name + \" [\" + .git_branch + \"]\"
+    end
+  else .name
+  end
+"'
+when = "pm status --quiet"
+format = "📁 [$output](bold blue) "
+description = "Show PM project with git status"
+```
+
+#### What You'll See
+
+Once configured, your prompt will show project information:
+```bash
+~/projects/my-app 📁 my-app [main*] ❯
+```
+
+For complete Starship integration documentation, see [docs/STARSHIP_INTEGRATION.md](docs/STARSHIP_INTEGRATION.md).
 
 ## Project Structure
 
