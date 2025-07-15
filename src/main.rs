@@ -161,6 +161,7 @@ enum Commands {
         replace: bool,
         
         /// Development mode with _PM_BINARY setup (hidden from help)
+        #[cfg(feature = "dev")]
         #[arg(long, hide = true)]
         dev: bool,
     },
@@ -638,8 +639,18 @@ async fn main() {
                 }
             }
         },
-        Commands::Init { skip, replace, dev } => {
-            if let Err(e) = init::handle_init(*skip, *replace, *dev).await {
+        Commands::Init { 
+            skip, 
+            replace, 
+            #[cfg(feature = "dev")]
+            dev 
+        } => {
+            #[cfg(feature = "dev")]
+            let dev_flag = *dev;
+            #[cfg(not(feature = "dev"))]
+            let dev_flag = false;
+            
+            if let Err(e) = init::handle_init(*skip, *replace, dev_flag).await {
                 handle_error(e, "Failed to initialize PM");
             }
         }

@@ -678,6 +678,7 @@ fn get_bash_integration_path() -> Result<PathBuf> {
 }
 
 /// Add development environment variable to shell files
+#[cfg(feature = "dev")]
 pub async fn add_dev_env_to_shell_files(binary_path: &Path) -> Result<()> {
     let shell_type = detect_shell();
     
@@ -700,6 +701,7 @@ pub async fn add_dev_env_to_shell_files(binary_path: &Path) -> Result<()> {
 }
 
 /// Add development environment variable to Fish shell
+#[cfg(feature = "dev")]
 async fn add_dev_env_to_fish(binary_path: &Path) -> Result<()> {
     let fish_file = get_fish_function_path();
     
@@ -737,6 +739,7 @@ set -gx _PM_BINARY "{}"
 }
 
 /// Add development environment variable to Zsh shell
+#[cfg(feature = "dev")]
 async fn add_dev_env_to_zsh(binary_path: &Path) -> Result<()> {
     let zsh_file = get_zsh_integration_path()?;
     
@@ -782,6 +785,7 @@ export _PM_BINARY="{}"
 }
 
 /// Add development environment variable to Bash shell
+#[cfg(feature = "dev")]
 async fn add_dev_env_to_bash(binary_path: &Path) -> Result<()> {
     let bash_file = get_bash_integration_path()?;
     
@@ -828,6 +832,7 @@ export _PM_BINARY="{}"
 
 
 /// Setup development shell integration for _pm
+#[cfg(feature = "dev")]
 pub async fn setup_dev_shell_integration() -> Result<()> {
     let shell_type = detect_shell();
     
@@ -845,6 +850,7 @@ pub async fn setup_dev_shell_integration() -> Result<()> {
 }
 
 /// Setup development Fish shell integration for _pm
+#[cfg(feature = "dev")]
 async fn setup_dev_fish_integration() -> Result<()> {
     let fish_functions_dir = dirs::home_dir()
         .ok_or_else(|| anyhow!("Could not find home directory"))?
@@ -865,6 +871,7 @@ async fn setup_dev_fish_integration() -> Result<()> {
 }
 
 /// Setup development Zsh shell integration for _pm
+#[cfg(feature = "dev")]
 async fn setup_dev_zsh_integration() -> Result<()> {
     let config_dir = crate::config::get_config_dir()?;
     fs::create_dir_all(&config_dir).await?;
@@ -913,6 +920,7 @@ async fn setup_dev_zsh_integration() -> Result<()> {
 }
 
 /// Setup development Bash shell integration for _pm
+#[cfg(feature = "dev")]
 async fn setup_dev_bash_integration() -> Result<()> {
     let config_dir = crate::config::get_config_dir()?;
     fs::create_dir_all(&config_dir).await?;
