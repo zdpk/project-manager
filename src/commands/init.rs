@@ -4,6 +4,7 @@ use crate::constants::*;
 use crate::display::*;
 use crate::error::{handle_inquire_error, PmError};
 use crate::shell_integration;
+use crate::utils;
 use anyhow::Result;
 use inquire::{Confirm, Select, Text};
 use std::path::{Path, PathBuf};
@@ -118,6 +119,12 @@ pub async fn handle_init(
     save_config(&config).await?;
     display_init_success(&config_dir_path, &config_path);
     
+    // Show configuration file path info
+    println!("📄 Configuration file: {}", config_path.display());
+    if utils::is_dev_mode() {
+        println!("   (Development mode - using separate config from production)");
+    }
+    
     // Step 5: Shell integration setup with backup support
     println!();
     let shell_backup = setup_shell_integration_with_backup(skip, replace).await?;
@@ -132,9 +139,9 @@ pub async fn handle_init(
         println!("💾 Backup created successfully");
     }
     
-    // Step 7: Development mode setup
-    #[cfg(feature = "dev")]
-    if dev {
+    // Step 7: Development mode setup (only in dev build)
+    if utils::is_dev_mode() {
+        #[cfg(feature = "dev")]
         setup_dev_environment().await?;
     }
     
@@ -154,7 +161,8 @@ pub async fn handle_init(
         println!("  Use current development binary for testing");
     }
     
-    println!("\n📖 Use 'pm --help' to see all available commands");
+    let binary_name = utils::get_binary_name();
+    println!("\n📖 Use '{} --help' to see all available commands", binary_name);
 
     Ok(())
 }
