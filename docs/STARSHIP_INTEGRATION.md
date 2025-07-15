@@ -4,103 +4,13 @@
 
 ## 개요
 
-PM은 Starship과의 완벽한 연동을 위해 두 가지 방법을 제공합니다:
-
-1. **🚀 PM Starship Helper** - `pm starship` 명령어를 사용한 자동 설정 (권장)
-2. **⚙️ Manual Setup** - 직접 Starship 설정 파일 수정
-
 PM의 `status` 명령어를 사용하여 Starship에서 현재 디렉토리가 PM으로 관리되는 프로젝트인지 감지하고, 프로젝트 이름, 태그, Git 상태 등의 정보를 프롬프트에 표시할 수 있습니다.
 
-## 🚀 PM Starship Helper (권장 방법)
+이 가이드는 PM과 Starship을 수동으로 연동하는 방법을 단계별로 안내합니다.
 
-PM 0.1.1부터 제공되는 `pm starship` 명령어를 사용하면 간단하게 Starship 연동을 설정할 수 있습니다.
+## 📋 Quick Setup (빠른 설정)
 
-### Quick Setup
-
-```bash
-# 자동 설정 (가장 간단한 방법)
-pm starship
-
-# 특정 스타일 선택
-pm starship --style minimal    # 프로젝트 이름만
-pm starship --style basic      # 프로젝트 이름 + Git 브랜치 (기본값)
-pm starship --style detailed   # 개별 모듈로 분리된 상세 정보
-
-# 설정 미리보기 (클립보드 복사 없음)
-pm starship --show
-
-# 현재 Starship 설정 테스트
-pm starship --test
-```
-
-### Interactive Configuration
-
-기본적으로 `pm starship`을 실행하면 인터랙티브 설정 마법사가 시작됩니다:
-
-```bash
-$ pm starship
-
-🌟 Starship Configuration Generator
-
-Let's create a custom Starship configuration for PM!
-
-? What style would you like?
-  > Basic - Project name + Git branch
-    Minimal - Just project name
-    Detailed - Separate modules for project, tags, and Git status
-
-? Include Git branch information? Yes
-
-? Use emoji icons (📁, 🏷️, 🌿)? Yes
-
-? Choose a color theme:
-  > Blue theme (default)
-    Green theme
-    Purple theme
-    Colorful theme (different colors for each element)
-
-✨ Generating Basic configuration...
-
-✅ Starship configuration copied to clipboard!
-📝 Add this to your ~/.config/starship.toml file:
-
-[custom.pm]
-command = '''pm status --format json --quiet | jq -r "
-  if .git_branch != \"\" then
-    if .git_changes then .name + \" [\" + .git_branch + \"*]\"
-    else .name + \" [\" + .git_branch + \"]\"
-    end
-  else .name
-  end
-" 2>/dev/null || echo ""'''
-when = "pm status --quiet"
-format = "📁 [$output](bold blue) "
-description = "Show PM project with git status"
-
-💡 Then restart your shell or run: source ~/.config/starship.toml
-```
-
-### Configuration Testing
-
-설정이 올바르게 작동하는지 확인:
-
-```bash
-$ pm starship --test
-
-🧪 Testing Starship configuration...
-
-✅ Starship is installed
-✅ PM status command works
-✅ Starship configuration file exists: /Users/you/.config/starship.toml
-✅ PM custom module found in starship.toml
-
-🔍 Testing PM status JSON output...
-✅ PM JSON output: {"name":"project-manager","tags":"rust,cli,tools","git_branch":"main","git_changes":false}
-```
-
-## 📋 Production Environment Setup (프로덕션 환경)
-
-시스템에 설치된 PM 바이너리를 사용하는 경우의 설정 절차입니다.
+가장 간단한 방법으로 PM과 Starship을 연동하는 방법입니다.
 
 ### Prerequisites
 
@@ -114,62 +24,47 @@ $ pm starship --test
 2. **PM 설치 확인**:
    ```bash
    pm --version
-   # PM 0.1.1 이상이 필요합니다
+   # PM이 설치되어 있어야 합니다
+   ```
+
+3. **jq 설치 확인** (JSON 파싱용):
+   ```bash
+   jq --version
+   # 설치되지 않은 경우:
+   # macOS: brew install jq
+   # Ubuntu: sudo apt-get install jq
+   # CentOS: sudo yum install jq
    ```
 
 ### Step-by-Step Setup
 
 ```bash
-# 1. PM Starship 도우미 실행
-pm starship
-
-# 2. 인터랙티브 설정 완료 후 클립보드에서 설정 복사됨
-
-# 3. Starship 설정 파일에 붙여넣기
-# macOS/Linux:
+# 1. Starship 설정 파일 열기
 nano ~/.config/starship.toml
 # 또는
 vim ~/.config/starship.toml
 
-# 4. 복사된 설정을 파일 끝에 추가
+# 2. 다음 설정을 파일 끝에 추가:
+[custom.pm]
+command = '''pm status --format json --quiet | jq -r "
+  if .git_branch != \"\" then
+    if .git_changes then .name + \" [\" + .git_branch + \"*]\"
+    else .name + \" [\" + .git_branch + \"]\"
+    end
+  else .name
+  end
+" 2>/dev/null || echo ""'''
+when = "pm status --quiet"
+format = "📁 [$output](bold blue) "
+description = "Show PM project with git status"
 
-# 5. 설정 테스트
-pm starship --test
+# 3. 설정 테스트
+pm status --format json --quiet
 
-# 6. 쉘 재시작 또는 설정 다시 로드
+# 4. 쉘 재시작 또는 설정 다시 로드
 exec $SHELL
 # 또는
 source ~/.config/starship.toml
-```
-
-### Automated Setup Script
-
-```bash
-#!/bin/bash
-# 프로덕션 환경 자동 설정 스크립트
-
-echo "🚀 Setting up PM Starship integration..."
-
-# Starship 설치 확인
-if ! command -v starship &> /dev/null; then
-    echo "Installing Starship..."
-    curl -sS https://starship.rs/install.sh | sh
-fi
-
-# PM 설치 확인
-if ! command -v pm &> /dev/null; then
-    echo "❌ PM is not installed. Please install PM first."
-    exit 1
-fi
-
-# Starship 설정 디렉토리 생성
-mkdir -p ~/.config
-
-# PM Starship 설정 생성 (기본 스타일)
-echo "Generating PM Starship configuration..."
-pm starship --style basic --show >> ~/.config/starship.toml
-
-echo "✅ Setup complete! Restart your shell to see PM project info in prompt."
 ```
 
 ## 🔧 Development Environment Setup (개발 환경)
@@ -206,11 +101,11 @@ export _PM_BINARY="/path/to/project-manager/target/release/pm"
 # ~/.bashrc, ~/.zshrc, 또는 ~/.config/fish/config.fish
 echo 'export _PM_BINARY="/path/to/project-manager/target/release/pm"' >> ~/.zshrc
 
-# 2. 개발 바이너리로 Starship 설정
-$_PM_BINARY starship
+# 2. 개발 바이너리로 설정 테스트
+$_PM_BINARY status --format json --quiet
 
 # 또는 PATH를 임시로 수정
-PATH="/path/to/project-manager/target/release:$PATH" pm starship
+PATH="/path/to/project-manager/target/release:$PATH" pm status
 ```
 
 ### Development Workflow
@@ -219,16 +114,15 @@ PATH="/path/to/project-manager/target/release:$PATH" pm starship
 # 1. 코드 변경 후 다시 빌드
 cargo build --release
 
-# 2. 새로운 설정 테스트
-$_PM_BINARY starship --test
+# 2. 새로운 상태 출력 테스트
+$_PM_BINARY status --format json --quiet
 
-# 3. 설정 업데이트가 필요한 경우
-$_PM_BINARY starship --style detailed --show
-
-# 4. 개발 중 다른 스타일 테스트
-$_PM_BINARY starship --style minimal --show
-$_PM_BINARY starship --style basic --show
-$_PM_BINARY starship --style detailed --show
+# 3. Starship 설정 파일 수정 (필요한 경우)
+# ~/.config/starship.toml 파일에서 command 부분을 개발 바이너리로 변경:
+[custom.pm]
+command = '''$_PM_BINARY status --format json --quiet | jq -r "..."'''
+when = "$_PM_BINARY status --quiet"
+format = "📁 [$output](bold blue) "
 ```
 
 ### Development Binary Integration
@@ -245,8 +139,8 @@ pm_dev() {
 }
 
 # 개발 중 빠른 테스트를 위한 별칭
-alias pm-test="$_PM_BINARY starship --test"
-alias pm-config="$_PM_BINARY starship --show"
+alias pm-status="$_PM_BINARY status --format json --quiet"
+alias pm-status-test="$_PM_BINARY status"
 ```
 
 ### Multi-Version Testing
@@ -259,10 +153,10 @@ alias pm-main="/path/to/pm-main/target/release/pm"
 alias pm-dev="/path/to/pm-dev/target/release/pm"
 alias pm-feature="/path/to/pm-feature/target/release/pm"
 
-# 각 버전별 Starship 설정 테스트
-pm-main starship --test
-pm-dev starship --test
-pm-feature starship --test
+# 각 버전별 상태 출력 테스트
+pm-main status --format json --quiet
+pm-dev status --format json --quiet
+pm-feature status --format json --quiet
 ```
 
 ## PM Status 명령어
@@ -616,34 +510,12 @@ style = "bold blue"
 
 ### Common Issues and Solutions
 
-#### 1. PM Starship Command Not Found
-
-**문제**: `pm starship` 명령어를 찾을 수 없다는 오류
-```bash
-$ pm starship
-zsh: command not found: pm starship
-```
-
-**해결방법**:
-```bash
-# PM 버전 확인 (0.1.1 이상 필요)
-pm --version
-
-# PM이 설치되지 않은 경우
-curl -fsSL https://github.com/zdpk/project-manager/releases/latest/download/install.sh | sh
-
-# 개발 환경인 경우
-export _PM_BINARY="/path/to/project-manager/target/release/pm"
-$_PM_BINARY --version
-```
-
-#### 2. Starship Not Installed
+#### 1. Starship Not Installed
 
 **문제**: Starship이 설치되지 않음
 ```bash
-$ pm starship --test
-❌ Starship is not installed
-💡 Install Starship: https://starship.rs/guide/#installation
+$ starship --version
+zsh: command not found: starship
 ```
 
 **해결방법**:
@@ -665,7 +537,7 @@ echo 'eval "$(starship init zsh)"' >> ~/.zshrc
 echo 'starship init fish | source' >> ~/.config/fish/config.fish
 ```
 
-#### 3. jq Command Not Found
+#### 2. jq Command Not Found
 
 **문제**: JSON 파싱에 필요한 `jq`가 설치되지 않음
 ```bash
@@ -684,11 +556,11 @@ sudo apt-get install jq
 # CentOS/RHEL
 sudo yum install jq
 
-# 또는 PM starship 명령어 사용 (jq 의존성 없음)
-pm starship --style minimal
+# jq 설치 확인
+jq --version
 ```
 
-#### 4. PM Configuration Not Found
+#### 3. PM Configuration Not Found
 
 **문제**: PM이 초기화되지 않음
 ```bash
@@ -712,7 +584,7 @@ pm add .
 pm scan
 ```
 
-#### 5. PM Module Not Showing in Prompt
+#### 4. PM Module Not Showing in Prompt
 
 **문제**: Starship 설정을 추가했지만 프롬프트에 나타나지 않음
 
@@ -721,8 +593,8 @@ pm scan
 # 1. 현재 디렉토리가 PM 프로젝트인지 확인
 pm status
 
-# 2. Starship 설정 테스트
-pm starship --test
+# 2. PM 상태 출력 테스트
+pm status --format json --quiet
 
 # 3. Starship 설정 파일 확인
 cat ~/.config/starship.toml | grep -A 10 "\[custom.pm\]"
@@ -734,7 +606,7 @@ exec $SHELL
 source ~/.config/starship.toml
 ```
 
-#### 6. Performance Issues (Slow Prompt)
+#### 5. Performance Issues (Slow Prompt)
 
 **문제**: 프롬프트가 느려짐
 
@@ -762,7 +634,7 @@ when = "pm status --quiet"
 format = "📁 [$output](bold blue) "
 ```
 
-#### 7. Development Binary Issues
+#### 6. Development Binary Issues
 
 **문제**: 개발 바이너리가 올바르게 인식되지 않음
 
@@ -786,7 +658,7 @@ echo 'export _PM_BINARY="/path/to/project-manager/target/release/pm"' >> ~/.zshr
 source ~/.zshrc
 ```
 
-#### 8. JSON Output Parsing Errors
+#### 7. JSON Output Parsing Errors
 
 **문제**: JSON 파싱 중 오류 발생
 
@@ -798,12 +670,15 @@ pm status --format json --quiet
 # 2. JSON 유효성 검증
 pm status --format json --quiet | jq .
 
-# 3. jq 없이 사용하는 설정으로 변경
-pm starship --style minimal --show
-
-# 4. 기본 설정 사용
+# 3. jq 없이 사용하는 간단한 설정으로 변경
 [custom.pm]
 command = 'pm status --format json --quiet'
+when = "pm status --quiet"
+format = "📁 [$output](bold blue) "
+
+# 4. 또는 텍스트 출력 사용
+[custom.pm]
+command = 'pm status --quiet'
 when = "pm status --quiet"
 format = "📁 [$output](bold blue) "
 ```
@@ -825,15 +700,13 @@ pm status
 pm status --format json
 pm status --format json --quiet
 
-# 3. Starship 설정 확인
-pm starship --test
+# 3. Starship 설정 파일 확인
+cat ~/.config/starship.toml | grep -A 10 "\[custom.pm\]"
 
-# 4. 설정 파일 확인
-cat ~/.config/starship.toml | grep -A 20 "\[custom.pm"
-
-# 5. 개발 바이너리 확인 (해당되는 경우)
+# 4. 개발 바이너리 확인 (해당되는 경우)
 ls -la $_PM_BINARY
 $_PM_BINARY --version
+
 ```
 
 ### Getting Help
@@ -850,21 +723,43 @@ $_PM_BINARY --version
 
 다양한 사용 시나리오에 맞는 설정 예제들:
 
-```bash
+```toml
 # 1. 최소 설정 (프로젝트 이름만)
-pm starship --style minimal --show
+[custom.pm]
+command = 'pm status --format json --quiet | jq -r ".name" 2>/dev/null || echo ""'
+when = "pm status --quiet"
+format = "📁 [$output](bold blue) "
 
 # 2. 기본 설정 (프로젝트 이름 + Git)
-pm starship --style basic --show
+[custom.pm]
+command = '''pm status --format json --quiet | jq -r "
+  if .git_branch != \"\" then
+    if .git_changes then .name + \" [\" + .git_branch + \"*]\"
+    else .name + \" [\" + .git_branch + \"]\"
+    end
+  else .name
+  end
+" 2>/dev/null || echo ""'''
+when = "pm status --quiet"
+format = "📁 [$output](bold blue) "
 
-# 3. 상세 설정 (분리된 모듈)
-pm starship --style detailed --show
+# 3. 아이콘 없는 설정
+[custom.pm]
+command = 'pm status --format json --quiet | jq -r ".name" 2>/dev/null || echo ""'
+when = "pm status --quiet"
+format = "[PM: $output](bold blue) "
 
-# 4. 아이콘 없는 설정
-pm starship --style basic_noicons_blue --show
+# 4. 녹색 테마
+[custom.pm]
+command = 'pm status --format json --quiet | jq -r ".name" 2>/dev/null || echo ""'
+when = "pm status --quiet"
+format = "📁 [$output](bold green) "
 
-# 5. 커스텀 컬러 테마
-pm starship --style basic_icons_green --show
+# 5. 간단한 텍스트 출력 (jq 없이)
+[custom.pm]
+command = 'pm status --quiet'
+when = "pm status --quiet"
+format = "📁 [$output](bold blue) "
 ```
 
 이제 Starship 프롬프트에서 PM 프로젝트 정보를 확인할 수 있습니다! 🚀

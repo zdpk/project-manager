@@ -9,6 +9,19 @@ homepage = "https://github.com/zdpk/project-manager"
 keywords = ["cli", "project", "management", "developer-tools"]
 categories = ["command-line-utilities", "development-tools"]
 
+[features]
+default = []
+dev-mode = []
+
+[[bin]]
+name = "pm"
+path = "src/main.rs"
+
+[[bin]]
+name = "_pm"
+path = "src/main.rs"
+required-features = ["dev-mode"]
+
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }

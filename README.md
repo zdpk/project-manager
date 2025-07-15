@@ -93,8 +93,8 @@ pm switch my-project
 # Using alias
 pm sw my-project
 
-# Set up Starship prompt integration (shows project info in terminal prompt)
-pm starship
+# Check project status (useful for prompt integration)
+pm status
 ```
 
 ### Initial Setup Example
@@ -118,16 +118,6 @@ $ pm init
 📂 Config directory: /Users/you/.config/pm
 ⚙️ Config file: /Users/you/.config/pm/config.yml
 
-🌟 Starship Prompt Integration
-✅ Starship is installed!
-Would you like to set up Starship integration now? › Yes
-
-🚀 Setting up Starship integration...
-✅ Starship configuration copied to clipboard!
-📝 Add this to your ~/.config/starship.toml file
-
-✅ Starship integration configured!
-💡 Restart your shell to see PM project info in your prompt
 
 🎯 Next steps:
   pm add .                       # Add current directory with interactive tags
@@ -374,45 +364,59 @@ PM automatically tracks which machine you last accessed each project on, making 
 
 ### Starship Prompt Integration
 
-PM integrates seamlessly with [Starship](https://starship.rs/) to show project information in your terminal prompt. 
+PM integrates seamlessly with [Starship](https://starship.rs/) to show project information in your terminal prompt using the `pm status` command.
 
 #### Quick Setup
 
-```bash
-# Use PM's built-in helper to set up Starship integration
-pm starship
+1. **Install Starship** (if not already installed):
+   ```bash
+   curl -sS https://starship.rs/install.sh | sh
+   ```
 
-# Interactive configuration wizard will guide you through:
-# 1. Style selection (minimal, basic, detailed)
-# 2. Icon preferences (emoji or text)
-# 3. Color theme selection
-# 4. Automatic clipboard copy of configuration
-```
+2. **Add PM configuration** to your `~/.config/starship.toml`:
+   ```toml
+   [custom.pm]
+   command = '''pm status --format json --quiet | jq -r "
+     if .git_branch != \"\" then
+       if .git_changes then .name + \" [\" + .git_branch + \"*]\"
+       else .name + \" [\" + .git_branch + \"]\"
+       end
+     else .name
+     end
+   " 2>/dev/null || echo ""'''
+   when = "pm status --quiet"
+   format = "📁 [$output](bold blue) "
+   description = "Show PM project with git status"
+   ```
 
-#### Manual Setup
-
-Add this to your `~/.config/starship.toml`:
-
-```toml
-[custom.pm]
-command = 'pm status --format json --quiet | jq -r "
-  if .git_branch != \"\" then
-    if .git_changes then .name + \" [\" + .git_branch + \"*]\"
-    else .name + \" [\" + .git_branch + \"]\"
-    end
-  else .name
-  end
-"'
-when = "pm status --quiet"
-format = "📁 [$output](bold blue) "
-description = "Show PM project with git status"
-```
+3. **Restart your shell** or reload configuration:
+   ```bash
+   exec $SHELL
+   ```
 
 #### What You'll See
 
 Once configured, your prompt will show project information:
 ```bash
 ~/projects/my-app 📁 my-app [main*] ❯
+```
+
+#### Alternative Configurations
+
+**Minimal (project name only):**
+```toml
+[custom.pm]
+command = 'pm status --format json --quiet | jq -r ".name" 2>/dev/null || echo ""'
+when = "pm status --quiet"
+format = "📁 [$output](bold blue) "
+```
+
+**Simple (without jq dependency):**
+```toml
+[custom.pm]
+command = 'pm status --quiet'
+when = "pm status --quiet"
+format = "📁 [$output](bold blue) "
 ```
 
 For complete Starship integration documentation, see [docs/STARSHIP_INTEGRATION.md](docs/STARSHIP_INTEGRATION.md).
