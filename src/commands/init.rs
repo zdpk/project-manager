@@ -1,24 +1,69 @@
+use crate::backup::{BackupReason, create_backup, add_backup_entry};
 use crate::config::{get_config_path, save_config, Config, ConfigSettings};
 use crate::constants::*;
 use crate::display::*;
 use crate::error::{handle_inquire_error, PmError};
 use crate::shell_integration;
 use anyhow::Result;
-use inquire::{Confirm, Text};
-use std::path::PathBuf;
+use inquire::{Confirm, Select, Text};
+use std::path::{Path, PathBuf};
 
-pub async fn handle_init() -> Result<()> {
+#[derive(Debug)]
+enum ConflictAction {
+    Skip,
+    Replace,
+    Cancel,
+}
+
+pub async fn handle_init(
+    skip: bool,
+    replace: bool,
+    dev: bool,
+) -> Result<()> {
     let config_path = get_config_path()?;
+    let mut backup_entry = None;
 
+    // Handle existing config with new skip/replace model
     if config_path.exists() {
-        display_success(&format!(
-            "{} is already initialized",
-            APP_NAME.to_uppercase()
-        ));
-        println!("📁 Configuration file: {}", config_path.display());
-        println!("\n💡 To reinitialize, delete the config file first:");
-        println!("   rm {}", config_path.display());
-        return Ok(());
+        if skip {
+            // Non-interactive skip mode
+            display_success(&format!(
+                "{} is already initialized",
+                APP_NAME.to_uppercase()
+            ));
+            println!("📁 Configuration file: {}", config_path.display());
+            println!("\n💡 To reinitialize with backup:");
+            println!("   pm init --replace   # Backup existing and recreate");
+            return Ok(());
+        } else if replace {
+            // Non-interactive replace mode
+            println!("💾 Creating backup of existing config...");
+            backup_entry = Some(create_backup(&config_path, BackupReason::InitForceRecreate).await?);
+        } else {
+            // Interactive mode: skip/replace/cancel
+            let action = handle_config_conflict_interactive(&config_path).await?;
+            
+            match action {
+                ConflictAction::Skip => {
+                    display_success(&format!(
+                        "{} is already initialized",
+                        APP_NAME.to_uppercase()
+                    ));
+                    println!("📁 Configuration file: {}", config_path.display());
+                    println!("\n💡 To reinitialize with backup:");
+                    println!("   pm init --replace   # Backup existing and recreate");
+                    return Ok(());
+                }
+                ConflictAction::Replace => {
+                    println!("💾 Creating backup and recreating config...");
+                    backup_entry = Some(create_backup(&config_path, BackupReason::InitConflictResolution).await?);
+                }
+                ConflictAction::Cancel => {
+                    println!("🚫 Initialization cancelled");
+                    return Ok(());
+                }
+            }
+        }
     }
 
     println!("🚀 Initializing {}...\n", APP_NAME.to_uppercase());
@@ -73,11 +118,23 @@ pub async fn handle_init() -> Result<()> {
     save_config(&config).await?;
     display_init_success(&config_dir_path, &config_path);
     
-    // Step 5: Shell integration setup
+    // Step 5: Shell integration setup with backup support
     println!();
-    if let Err(e) = shell_integration::setup_shell_integration_for_init().await {
-        display_warning(&format!("Failed to setup shell integration: {}", e));
-        println!("💡 You can manually setup shell integration later");
+    let shell_backup = setup_shell_integration_with_backup(skip, replace).await?;
+    
+    // Step 6: Save backup metadata if we created any backups
+    if let Some(mut backup) = backup_entry {
+        if let Some(shell_backup) = shell_backup {
+            backup.files.extend(shell_backup.files);
+            backup.shell_changes.extend(shell_backup.shell_changes);
+        }
+        add_backup_entry(backup).await?;
+        println!("💾 Backup created successfully");
+    }
+    
+    // Step 7: Development mode setup
+    if dev {
+        setup_dev_environment().await?;
     }
 
     // Show next steps for using PM
@@ -87,7 +144,91 @@ pub async fn handle_init() -> Result<()> {
     println!("  pm clone <owner>/<repo> # Clone specific repository");
     println!("  pm clone               # Browse and select repositories");
     
+    if dev {
+        println!("\n🔧 Development mode enabled:");
+        println!("  _PM_BINARY environment variable configured in shell files");
+        println!("  Use current development binary for testing");
+    }
+    
     println!("\n📖 Use 'pm --help' to see all available commands");
 
+    Ok(())
+}
+
+/// Handle configuration file conflicts with interactive user choice
+async fn handle_config_conflict_interactive(
+    config_path: &Path,
+) -> Result<ConflictAction> {
+    println!("⚠️  Configuration already exists: {}", config_path.display());
+    
+    // Interactive prompt with skip/replace choices
+    let choices = vec!["Skip (keep existing)", "Replace (backup and recreate)", "Cancel"];
+    let choice = handle_inquire_error(
+        Select::new("What would you like to do?", choices)
+            .prompt()
+    )?;
+    
+    match choice {
+        "Skip (keep existing)" => Ok(ConflictAction::Skip),
+        "Replace (backup and recreate)" => Ok(ConflictAction::Replace),
+        "Cancel" => Ok(ConflictAction::Cancel),
+        _ => unreachable!(),
+    }
+}
+
+/// Setup shell integration with backup support
+async fn setup_shell_integration_with_backup(
+    skip: bool,
+    replace: bool,
+) -> Result<Option<crate::backup::BackupEntry>> {
+    // Use the new backup-enabled shell integration setup
+    match shell_integration::setup_shell_integration_with_backup(skip, replace).await {
+        Ok(backup_entry) => Ok(backup_entry),
+        Err(e) => {
+            display_warning(&format!("Failed to setup shell integration: {}", e));
+            println!("💡 You can manually setup shell integration later");
+            Ok(None)
+        }
+    }
+}
+
+/// Setup development environment with _PM_BINARY
+async fn setup_dev_environment() -> Result<()> {
+    println!("🔧 Setting up development environment...");
+    
+    // Detect current binary path
+    let current_exe = std::env::current_exe()?;
+    let dev_binary_path = if current_exe.to_string_lossy().contains("target/debug") {
+        current_exe
+    } else {
+        // Try to guess development directory
+        let mut path = current_exe.clone();
+        path.pop(); // Remove binary name
+        
+        // Try to find target/debug/pm
+        let mut dev_path = path.clone();
+        dev_path.push("target");
+        dev_path.push("debug");
+        dev_path.push("pm");
+        
+        if dev_path.exists() {
+            dev_path
+        } else {
+            // Fallback to current exe
+            println!("⚠️  Could not detect development binary path, using current executable");
+            current_exe
+        }
+    };
+    
+    // Add environment variable to shell files
+    if let Err(e) = shell_integration::add_dev_env_to_shell_files(&dev_binary_path).await {
+        display_warning(&format!("Failed to add development environment to shell files: {}", e));
+        println!("💡 You can manually set _PM_BINARY environment variable");
+        println!("   export _PM_BINARY=\"{}\"", dev_binary_path.display());
+    }
+    
+    println!("✅ Development environment configured");
+    println!("   _PM_BINARY set to: {}", dev_binary_path.display());
+    
     Ok(())
 }

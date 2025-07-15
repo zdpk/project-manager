@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use uuid::Uuid;
 
+mod backup;
 mod commands;
 mod config;
 mod constants;
@@ -18,7 +19,7 @@ mod validation;
 use error::PmError;
 
 use commands::config::ExportFormat;
-use commands::{config as config_cmd, init, project, tag};
+use commands::{backup as backup_cmd, config as config_cmd, init, project, tag};
 use config::load_config;
 use constants::*;
 use display::display_error;
@@ -90,9 +91,9 @@ enum Commands {
         #[arg(short = 'l', long)]
         limit: Option<usize>,
 
-        /// Show detailed information
-        #[arg(short = 'd', long)]
-        detailed: bool,
+        /// Show verbose information
+        #[arg(short = 'v', long)]
+        verbose: bool,
     },
 
     /// Switch to a project directory (alias: sw)
@@ -138,10 +139,59 @@ enum Commands {
         command: Option<ConfigCommands>,
     },
 
+    /// Manage backups (list, restore, clean) (alias: bk)
+    #[command(alias = "bk")]
+    Backup {
+        #[command(subcommand)]
+        action: BackupAction,
+    },
+
     /// Initialize PM with basic configuration
-    Init,
+    Init {
+        /// Skip initialization if config exists (non-interactive)
+        #[arg(long)]
+        skip: bool,
+        
+        /// Replace existing config with backup (non-interactive)
+        #[arg(long)]
+        replace: bool,
+        
+        /// Development mode with _PM_BINARY setup (hidden from help)
+        #[arg(long, hide = true)]
+        dev: bool,
+    },
 }
 
+
+#[derive(Subcommand)]
+enum BackupAction {
+    /// List all available backups
+    List,
+    
+    /// Restore a specific backup or select interactively
+    Restore {
+        /// Backup ID to restore (optional for interactive mode)
+        backup_id: Option<String>,
+        
+        /// Skip confirmation prompt
+        #[arg(short = 'f', long)]
+        force: bool,
+    },
+    
+    /// Clean old backups (keep most recent N)
+    Clean {
+        /// Number of backups to keep
+        #[arg(default_value = "5")]
+        keep: usize,
+        
+        /// Skip confirmation prompt
+        #[arg(short = 'f', long)]
+        force: bool,
+    },
+    
+    /// Show backup system status
+    Status,
+}
 
 #[derive(Subcommand)]
 enum TagAction {
@@ -356,9 +406,9 @@ async fn main() {
             tags_any,
             recent,
             limit,
-            detailed,
+            verbose,
         } => {
-            if let Err(e) = project::handle_list(tags, tags_any, recent, limit, *detailed).await {
+            if let Err(e) = project::handle_list(tags, tags_any, recent, limit, *verbose).await {
                 handle_config_error(e);
             }
         }
@@ -515,8 +565,36 @@ async fn main() {
                 }
             }
         },
-        Commands::Init => {
-            if let Err(e) = init::handle_init().await {
+        Commands::Backup { action } => match action {
+            BackupAction::List => {
+                if let Err(e) = backup_cmd::handle_backup_list().await {
+                    handle_error(e, "Failed to list backups");
+                }
+            }
+            BackupAction::Restore { backup_id, force } => {
+                if let Some(id) = backup_id {
+                    if let Err(e) = backup_cmd::handle_backup_restore(id, *force).await {
+                        handle_error(e, "Failed to restore backup");
+                    }
+                } else {
+                    if let Err(e) = backup_cmd::handle_backup_restore_interactive().await {
+                        handle_error(e, "Failed to restore backup");
+                    }
+                }
+            }
+            BackupAction::Clean { keep, force } => {
+                if let Err(e) = backup_cmd::handle_backup_clean(*keep, *force).await {
+                    handle_error(e, "Failed to clean backups");
+                }
+            }
+            BackupAction::Status => {
+                if let Err(e) = backup_cmd::handle_backup_status().await {
+                    handle_error(e, "Failed to show backup status");
+                }
+            }
+        },
+        Commands::Init { skip, replace, dev } => {
+            if let Err(e) = init::handle_init(*skip, *replace, *dev).await {
                 handle_error(e, "Failed to initialize PM");
             }
         }

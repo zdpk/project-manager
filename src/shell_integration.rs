@@ -4,6 +4,7 @@ use dirs;
 use inquire::{Confirm, Select};
 use std::path::{Path, PathBuf};
 use tokio::fs;
+use crate::backup::{BackupEntry, BackupReason, create_multi_file_backup};
 
 #[derive(Debug, Clone)]
 enum ConflictAction {
@@ -12,7 +13,7 @@ enum ConflictAction {
     Cancel,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum ShellType {
     Fish,
     Zsh,
@@ -560,6 +561,273 @@ async fn setup_bash_integration() -> Result<()> {
     println!("   Function file: {}", bash_file_path.display());
     println!("   Sourced from: {}", bashrc_path.display());
     println!("   Usage: pm sw <project> will now change your shell directory");
+    
+    Ok(())
+}
+
+/// Setup shell integration with backup support
+pub async fn setup_shell_integration_with_backup(
+    skip: bool,
+    replace: bool,
+) -> Result<Option<BackupEntry>> {
+    let shell_type = detect_shell();
+    
+    // Collect existing shell integration files that need backup
+    let mut files_to_backup = Vec::new();
+    
+    match shell_type {
+        ShellType::Fish => {
+            let fish_file = get_fish_function_path();
+            if fish_file.exists() {
+                files_to_backup.push(fish_file);
+            }
+        }
+        ShellType::Zsh => {
+            let zsh_file = get_zsh_integration_path()?;
+            if zsh_file.exists() {
+                files_to_backup.push(zsh_file);
+            }
+        }
+        ShellType::Bash => {
+            let bash_file = get_bash_integration_path()?;
+            if bash_file.exists() {
+                files_to_backup.push(bash_file);
+            }
+        }
+        ShellType::Unknown => {
+            println!("❓ Unknown shell detected, skipping shell integration");
+            return Ok(None);
+        }
+    }
+    
+    // Handle backup if files exist
+    let backup_entry = if !files_to_backup.is_empty() {
+        handle_shell_integration_conflict(&files_to_backup, skip, replace).await?
+    } else {
+        None
+    };
+    
+    // Setup shell integration
+    match shell_type {
+        ShellType::Fish => setup_fish_integration().await?,
+        ShellType::Zsh => setup_zsh_integration().await?,
+        ShellType::Bash => setup_bash_integration().await?,
+        ShellType::Unknown => {} // Already handled above
+    }
+    
+    Ok(backup_entry)
+}
+
+/// Handle shell integration file conflicts
+async fn handle_shell_integration_conflict(
+    files_to_backup: &[PathBuf],
+    skip: bool,
+    replace: bool,
+) -> Result<Option<BackupEntry>> {
+    if skip {
+        // Non-interactive skip mode
+        println!("⏭️ Skipping shell integration setup - files already exist");
+        return Ok(None);
+    } else if replace {
+        // Non-interactive replace mode
+        println!("💾 Creating backup of existing shell integration files...");
+        let file_refs: Vec<&Path> = files_to_backup.iter().map(|p| p.as_path()).collect();
+        return Ok(Some(create_multi_file_backup(&file_refs, BackupReason::InitConflictResolution).await?));
+    } else {
+        // Interactive mode: skip/replace/cancel  
+        let choices = vec!["Skip (keep existing)", "Replace (backup and recreate)", "Cancel"];
+        let choice = Select::new("Shell integration files already exist. What would you like to do?", choices)
+            .prompt()?;
+        
+        match choice {
+            "Skip (keep existing)" => {
+                println!("⏭️ Keeping existing shell integration");
+                return Ok(None);
+            }
+            "Replace (backup and recreate)" => {
+                println!("💾 Creating backup and recreating shell integration...");
+                let file_refs: Vec<&Path> = files_to_backup.iter().map(|p| p.as_path()).collect();
+                return Ok(Some(create_multi_file_backup(&file_refs, BackupReason::InitConflictResolution).await?));
+            }
+            "Cancel" => {
+                println!("🚫 Shell integration setup cancelled");
+                return Ok(None); // Return None instead of exit for graceful handling
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+/// Get Fish function file path
+fn get_fish_function_path() -> PathBuf {
+    dirs::home_dir()
+        .map(|home| home.join(".config/fish/functions/pm.fish"))
+        .unwrap_or_else(|| PathBuf::from("~/.config/fish/functions/pm.fish"))
+}
+
+/// Get Zsh integration file path
+fn get_zsh_integration_path() -> Result<PathBuf> {
+    let config_dir = crate::config::get_config_path()?
+        .parent()
+        .ok_or_else(|| anyhow!("Failed to get config directory"))?
+        .to_path_buf();
+    Ok(config_dir.join("pm.zsh"))
+}
+
+/// Get Bash integration file path
+fn get_bash_integration_path() -> Result<PathBuf> {
+    let config_dir = crate::config::get_config_path()?
+        .parent()
+        .ok_or_else(|| anyhow!("Failed to get config directory"))?
+        .to_path_buf();
+    Ok(config_dir.join("pm.bash"))
+}
+
+/// Add development environment variable to shell files
+pub async fn add_dev_env_to_shell_files(binary_path: &Path) -> Result<()> {
+    let shell_type = detect_shell();
+    
+    match shell_type {
+        ShellType::Fish => {
+            add_dev_env_to_fish(binary_path).await?;
+        }
+        ShellType::Zsh => {
+            add_dev_env_to_zsh(binary_path).await?;
+        }
+        ShellType::Bash => {
+            add_dev_env_to_bash(binary_path).await?;
+        }
+        ShellType::Unknown => {
+            println!("⚠️  Unknown shell type, cannot add development environment variable");
+        }
+    }
+    
+    Ok(())
+}
+
+/// Add development environment variable to Fish shell
+async fn add_dev_env_to_fish(binary_path: &Path) -> Result<()> {
+    let fish_file = get_fish_function_path();
+    
+    if !fish_file.exists() {
+        return Err(anyhow!("Fish integration file not found: {}", fish_file.display()));
+    }
+    
+    let mut content = fs::read_to_string(&fish_file).await?;
+    
+    // Check if dev env is already added
+    if content.contains("# Development environment") {
+        println!("🔧 Development environment already configured in Fish");
+        return Ok(());
+    }
+    
+    // Add development environment variable at the beginning of the function
+    let dev_env_section = format!(
+        r#"
+# Development environment - auto-configured by pm init --dev
+set -gx _PM_BINARY "{}"
+"#,
+        binary_path.display()
+    );
+    
+    // Insert after the comment header but before the function definition
+    if let Some(function_start) = content.find("function pm") {
+        content.insert_str(function_start, &dev_env_section);
+        fs::write(&fish_file, content).await?;
+        println!("✅ Added _PM_BINARY to Fish integration: {}", fish_file.display());
+    } else {
+        return Err(anyhow!("Could not find function definition in Fish file"));
+    }
+    
+    Ok(())
+}
+
+/// Add development environment variable to Zsh shell
+async fn add_dev_env_to_zsh(binary_path: &Path) -> Result<()> {
+    let zsh_file = get_zsh_integration_path()?;
+    
+    if !zsh_file.exists() {
+        return Err(anyhow!("Zsh integration file not found: {}", zsh_file.display()));
+    }
+    
+    let mut content = fs::read_to_string(&zsh_file).await?;
+    
+    // Check if dev env is already added
+    if content.contains("# Development environment") {
+        println!("🔧 Development environment already configured in Zsh");
+        return Ok(());
+    }
+    
+    // Add development environment variable at the beginning
+    let dev_env_section = format!(
+        r#"# Development environment - auto-configured by pm init --dev
+export _PM_BINARY="{}"
+
+"#,
+        binary_path.display()
+    );
+    
+    // Insert after the comment header
+    if let Some(insert_pos) = content.find("# Environment Variables:") {
+        // Find end of the comment section
+        if let Some(end_pos) = content[insert_pos..].find('\n') {
+            let actual_pos = insert_pos + end_pos + 1;
+            content.insert_str(actual_pos, &dev_env_section);
+        } else {
+            content.insert_str(insert_pos, &dev_env_section);
+        }
+    } else {
+        // Insert at the beginning if no environment variables section found
+        content.insert_str(0, &dev_env_section);
+    }
+    
+    fs::write(&zsh_file, content).await?;
+    println!("✅ Added _PM_BINARY to Zsh integration: {}", zsh_file.display());
+    
+    Ok(())
+}
+
+/// Add development environment variable to Bash shell
+async fn add_dev_env_to_bash(binary_path: &Path) -> Result<()> {
+    let bash_file = get_bash_integration_path()?;
+    
+    if !bash_file.exists() {
+        return Err(anyhow!("Bash integration file not found: {}", bash_file.display()));
+    }
+    
+    let mut content = fs::read_to_string(&bash_file).await?;
+    
+    // Check if dev env is already added
+    if content.contains("# Development environment") {
+        println!("🔧 Development environment already configured in Bash");
+        return Ok(());
+    }
+    
+    // Add development environment variable at the beginning
+    let dev_env_section = format!(
+        r#"# Development environment - auto-configured by pm init --dev
+export _PM_BINARY="{}"
+
+"#,
+        binary_path.display()
+    );
+    
+    // Insert after the comment header
+    if let Some(insert_pos) = content.find("# Environment Variables:") {
+        // Find end of the comment section
+        if let Some(end_pos) = content[insert_pos..].find('\n') {
+            let actual_pos = insert_pos + end_pos + 1;
+            content.insert_str(actual_pos, &dev_env_section);
+        } else {
+            content.insert_str(insert_pos, &dev_env_section);
+        }
+    } else {
+        // Insert at the beginning if no environment variables section found
+        content.insert_str(0, &dev_env_section);
+    }
+    
+    fs::write(&bash_file, content).await?;
+    println!("✅ Added _PM_BINARY to Bash integration: {}", bash_file.display());
     
     Ok(())
 }
