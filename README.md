@@ -13,6 +13,7 @@ A fast, terminal-based project management CLI tool written in Rust. PM helps dev
 - **Machine-Specific Metadata**: Track project access and usage across different machines
 - **Fast Directory Switching**: Instant navigation to project directories
 - **Shell Integration**: Automatic shell setup for Fish, Bash, and Zsh with directory changing
+- **Starship Prompt Integration**: Show project info in your terminal prompt with one command
 - **Rich CLI Interface**: Colorful output with progress indicators and interactive prompts
 
 ## Installation
@@ -91,6 +92,9 @@ pm switch my-project
 
 # Using alias
 pm sw my-project
+
+# Check project status (useful for prompt integration)
+pm status
 ```
 
 ### Initial Setup Example
@@ -113,6 +117,7 @@ $ pm init
 ✅ PM initialized successfully
 📂 Config directory: /Users/you/.config/pm
 ⚙️ Config file: /Users/you/.config/pm/config.yml
+
 
 🎯 Next steps:
   pm add .                       # Add current directory with interactive tags
@@ -356,6 +361,65 @@ alias pma="pm add ."
 ### Multiple Machine Sync
 
 PM automatically tracks which machine you last accessed each project on, making it easy to work across multiple development environments.
+
+### Starship Prompt Integration
+
+PM integrates seamlessly with [Starship](https://starship.rs/) to show project information in your terminal prompt using the `pm status` command.
+
+#### Quick Setup
+
+1. **Install Starship** (if not already installed):
+   ```bash
+   curl -sS https://starship.rs/install.sh | sh
+   ```
+
+2. **Add PM configuration** to your `~/.config/starship.toml`:
+   ```toml
+   [custom.pm]
+   command = '''pm status --format json --quiet | jq -r "
+     if .git_branch != \"\" then
+       if .git_changes then .name + \" [\" + .git_branch + \"*]\"
+       else .name + \" [\" + .git_branch + \"]\"
+       end
+     else .name
+     end
+   " 2>/dev/null || echo ""'''
+   when = "pm status --quiet"
+   format = "📁 [$output](bold blue) "
+   description = "Show PM project with git status"
+   ```
+
+3. **Restart your shell** or reload configuration:
+   ```bash
+   exec $SHELL
+   ```
+
+#### What You'll See
+
+Once configured, your prompt will show project information:
+```bash
+~/projects/my-app 📁 my-app [main*] ❯
+```
+
+#### Alternative Configurations
+
+**Minimal (project name only):**
+```toml
+[custom.pm]
+command = 'pm status --format json --quiet | jq -r ".name" 2>/dev/null || echo ""'
+when = "pm status --quiet"
+format = "📁 [$output](bold blue) "
+```
+
+**Simple (without jq dependency):**
+```toml
+[custom.pm]
+command = 'pm status --quiet'
+when = "pm status --quiet"
+format = "📁 [$output](bold blue) "
+```
+
+For complete Starship integration documentation, see [docs/STARSHIP_INTEGRATION.md](docs/STARSHIP_INTEGRATION.md).
 
 ## Project Structure
 

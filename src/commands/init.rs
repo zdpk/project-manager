@@ -133,9 +133,11 @@ pub async fn handle_init(
     }
     
     // Step 7: Development mode setup
+    #[cfg(feature = "dev")]
     if dev {
         setup_dev_environment().await?;
     }
+    
 
     // Show next steps for using PM
     println!("\n🎯 Next steps:");
@@ -144,9 +146,11 @@ pub async fn handle_init(
     println!("  pm clone <owner>/<repo> # Clone specific repository");
     println!("  pm clone               # Browse and select repositories");
     
+    #[cfg(feature = "dev")]
     if dev {
         println!("\n🔧 Development mode enabled:");
         println!("  _PM_BINARY environment variable configured in shell files");
+        println!("  _pm shell integration installed for development");
         println!("  Use current development binary for testing");
     }
     
@@ -193,6 +197,7 @@ async fn setup_shell_integration_with_backup(
 }
 
 /// Setup development environment with _PM_BINARY
+#[cfg(feature = "dev")]
 async fn setup_dev_environment() -> Result<()> {
     println!("🔧 Setting up development environment...");
     
@@ -221,10 +226,22 @@ async fn setup_dev_environment() -> Result<()> {
     };
     
     // Add environment variable to shell files
+    #[cfg(feature = "dev")]
     if let Err(e) = shell_integration::add_dev_env_to_shell_files(&dev_binary_path).await {
         display_warning(&format!("Failed to add development environment to shell files: {}", e));
         println!("💡 You can manually set _PM_BINARY environment variable");
         println!("   export _PM_BINARY=\"{}\"", dev_binary_path.display());
+    }
+    
+    // Setup development shell integration for _pm
+    println!("\n🔧 Setting up development shell integration...");
+    #[cfg(feature = "dev")]
+    if let Err(e) = shell_integration::setup_dev_shell_integration().await {
+        display_warning(&format!("Failed to setup development shell integration: {}", e));
+        println!("💡 You can manually setup _pm shell function later");
+    } else {
+        println!("✅ Development shell integration installed");
+        println!("   You can now use '_pm' command for development");
     }
     
     println!("✅ Development environment configured");
@@ -232,3 +249,4 @@ async fn setup_dev_environment() -> Result<()> {
     
     Ok(())
 }
+

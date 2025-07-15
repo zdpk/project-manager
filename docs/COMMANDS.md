@@ -336,6 +336,139 @@ pm sw my-project
 📁 Changed directory to: /path/to/my-project
 ```
 
+### `pm status`
+
+Shows information about the current project for prompt integration. This command is designed to work with shell prompts like Starship to display project context.
+
+**Usage:**
+
+```bash
+pm status                                      # Full project information
+pm status --quiet                             # Compact output for prompts
+pm status --format json                       # JSON format output
+pm status --format json --quiet               # Minimal JSON for parsing
+```
+
+**Options:**
+
+* `--format <FORMAT>`: Output format (`text` or `json`, default: `text`)
+* `-q, --quiet`: Quiet mode for prompt integration (minimal output)
+
+**Behavior:**
+
+* Detects if current directory is a PM-managed project
+* Shows project name, tags, Git status, and metadata
+* Supports parent directory detection (works in subdirectories)
+* Returns appropriate exit codes for conditional display in prompts
+
+**Output Examples:**
+
+**Text format (default):**
+```bash
+$ pm status
+📋 Project: project-manager
+🏷️  Tags: rust, cli, tools
+📁 Path: /Users/user/github/project-manager
+🌿 Git: feat/enhanced-add-command (with changes)
+📊 Access count: 15
+🕒 Last accessed: 2025-07-15 10:30:00
+```
+
+**Text quiet format:**
+```bash
+$ pm status --quiet
+project-manager (rust, cli, tools) [feat/enhanced-add-command*]
+```
+
+**JSON format:**
+```json
+{
+  "project": {
+    "name": "project-manager",
+    "tags": ["rust", "cli", "tools"],
+    "path": "/Users/user/github/project-manager",
+    "description": "CLI project manager",
+    "language": "Rust"
+  },
+  "git": {
+    "is_repository": true,
+    "branch": "feat/enhanced-add-command",
+    "has_changes": true,
+    "remote_url": "https://github.com/user/project-manager.git"
+  },
+  "metadata": {
+    "access_count": 15,
+    "last_accessed": "2025-07-15T10:30:00Z"
+  }
+}
+```
+
+**JSON quiet format:**
+```json
+{"name":"project-manager","tags":"rust,cli,tools","git_branch":"feat/enhanced-add-command","git_changes":true}
+```
+
+**Not in a project:**
+```bash
+$ pm status
+Current directory is not a PM-managed project
+💡 Use 'pm add .' to add this directory as a project
+
+$ pm status --quiet
+# (exits with code 1 for conditional display)
+```
+
+**Starship Integration:**
+
+The `status` command is designed for integration with Starship prompt. Add this to your `~/.config/starship.toml`:
+
+```toml
+[custom.pm]
+command = "pm status --format json --quiet"
+when = "pm status --quiet"
+format = "📁 [$output](bold blue) "
+```
+
+**Starship Integration:**
+
+The `status` command is designed for integration with Starship prompt. Here are some example configurations to add to your `~/.config/starship.toml`:
+
+**Basic Configuration:**
+```toml
+[custom.pm]
+command = '''pm status --format json --quiet | jq -r "
+  if .git_branch != \"\" then
+    if .git_changes then .name + \" [\" + .git_branch + \"*]\"
+    else .name + \" [\" + .git_branch + \"]\"
+    end
+  else .name
+  end
+" 2>/dev/null || echo ""'''
+when = "pm status --quiet"
+format = "📁 [$output](bold blue) "
+description = "Show PM project with git status"
+```
+
+**Minimal Configuration:**
+```toml
+[custom.pm]
+command = 'pm status --format json --quiet | jq -r ".name" 2>/dev/null || echo ""'
+when = "pm status --quiet"
+format = "📁 [$output](bold blue) "
+description = "Show PM project name"
+```
+
+**Simple Configuration (without jq):**
+```toml
+[custom.pm]
+command = 'pm status --quiet'
+when = "pm status --quiet"
+format = "📁 [$output](bold blue) "
+description = "Show PM project information"
+```
+
+For more detailed Starship integration examples, see [STARSHIP_INTEGRATION.md](STARSHIP_INTEGRATION.md).
+
 ### `pm remove` (alias: `pm rm`)
 
 Removes projects from PM's management list with interactive confirmation and smart matching.
@@ -557,6 +690,7 @@ pm config set settings.show_git_status true # Set specific value
 | `pm add` | `pm a` | Add projects with interactive tag selection |
 | `pm list` | `pm ls` | List managed projects |
 | `pm switch` | `pm sw` | Switch to project directory |
+| `pm status` | - | Show current project status (for prompt integration) |
 | `pm remove` | `pm rm` | Remove projects from PM |
 | `pm clone` | `pm cl` | Clone GitHub repositories |
 | `pm scan` | `pm sc` | Scan for existing repositories |

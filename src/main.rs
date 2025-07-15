@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -19,7 +19,7 @@ mod validation;
 use error::PmError;
 
 use commands::config::ExportFormat;
-use commands::{backup as backup_cmd, config as config_cmd, init, project, tag};
+use commands::{backup as backup_cmd, config as config_cmd, init, project, status, tag};
 use config::load_config;
 use constants::*;
 use display::display_error;
@@ -37,10 +37,14 @@ fn handle_config_error(e: anyhow::Error) -> ! {
 }
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None, disable_help_subcommand = true, disable_version_flag = true)]
 struct Cli {
+    /// Show version information
+    #[arg(short = 'v', long = "version")]
+    version: bool,
+    
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -157,9 +161,22 @@ enum Commands {
         replace: bool,
         
         /// Development mode with _PM_BINARY setup (hidden from help)
+        #[cfg(feature = "dev")]
         #[arg(long, hide = true)]
         dev: bool,
     },
+
+    /// Show current project status (for prompt integration)
+    Status {
+        /// Output format (text, json)
+        #[arg(long, default_value = "text")]
+        format: String,
+        
+        /// Quiet mode for prompt integration
+        #[arg(short, long)]
+        quiet: bool,
+    },
+
 }
 
 
@@ -376,9 +393,38 @@ pub struct MachineMetadata {
 
 #[tokio::main]
 async fn main() {
+    // Detect development mode based on binary name
+    let is_dev_mode = std::env::args().next()
+        .map(|arg0| std::path::Path::new(&arg0)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(|name| name == "_pm")
+            .unwrap_or(false))
+        .unwrap_or(false);
+
+    // Set development mode environment variable for config loading
+    if is_dev_mode {
+        std::env::set_var("PM_DEV_MODE", "true");
+    }
+
     let cli = Cli::parse();
 
-    match &cli.command {
+    // Handle global version flag
+    if cli.version {
+        let binary_name = if is_dev_mode { "_pm" } else { env!("CARGO_PKG_NAME") };
+        println!("{} {} {}", binary_name, env!("CARGO_PKG_VERSION"), 
+                 if is_dev_mode { "(dev)" } else { "" });
+        return;
+    }
+
+    // If no command provided, show help
+    let Some(command) = &cli.command else {
+        let mut app = Cli::command();
+        app.print_help().unwrap();
+        return;
+    };
+
+    match command {
         Commands::Add {
             path,
             name,
@@ -593,9 +639,24 @@ async fn main() {
                 }
             }
         },
-        Commands::Init { skip, replace, dev } => {
-            if let Err(e) = init::handle_init(*skip, *replace, *dev).await {
+        Commands::Init { 
+            skip, 
+            replace, 
+            #[cfg(feature = "dev")]
+            dev 
+        } => {
+            #[cfg(feature = "dev")]
+            let dev_flag = *dev;
+            #[cfg(not(feature = "dev"))]
+            let dev_flag = false;
+            
+            if let Err(e) = init::handle_init(*skip, *replace, dev_flag).await {
                 handle_error(e, "Failed to initialize PM");
+            }
+        }
+        Commands::Status { format, quiet } => {
+            if let Err(e) = status::handle_status(format, *quiet).await {
+                handle_error(e, "Failed to get project status");
             }
         }
     }
