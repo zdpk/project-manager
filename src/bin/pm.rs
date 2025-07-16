@@ -1,18 +1,12 @@
 use clap::{CommandFactory, Parser};
 use pm::{
-    handle_command, handle_config_error, utils, Cli, Commands, PmError
+    handle_command, handle_config_error, Cli, PmError
 };
 
 #[tokio::main]
 async fn main() {
-    // Production binary should not be built with dev features
-    if cfg!(feature = "dev") {
-        eprintln!("❌ Error: Production binary built with dev features!");
-        eprintln!("💡 Correct usage:");
-        eprintln!("   Production: cargo build --bin pm");
-        eprintln!("   Development: cargo build --bin _pm --features dev");
-        std::process::exit(1);
-    }
+    // This is the production binary
+    // Both pm and _pm binaries now have identical functionality
 
     let cli = Cli::parse();
 
