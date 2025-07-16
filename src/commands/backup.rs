@@ -14,7 +14,7 @@ pub async fn handle_backup_list() -> Result<()> {
     if metadata.backups.is_empty() {
         println!("📦 No backups found");
         println!("💡 Backups are created automatically during:");
-        println!("   • pm init --backup or --force");
+        println!("   • {} init --backup or --force", crate::utils::get_binary_name());
         println!("   • Conflict resolution during initialization");
         return Ok(());
     }

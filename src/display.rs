@@ -155,15 +155,16 @@ pub fn display_project_list_header(count: usize) {
 
 pub fn display_no_projects() {
     println!("📋 No projects found");
-    println!("\n💡 {}", SUGGESTION_ADD_FIRST_PROJECT);
+    println!("\n💡 {}", crate::constants::get_suggestion_add_first_project());
 }
 
 pub fn display_no_matches() {
+    let binary = crate::utils::get_binary_name();
     println!("📋 No projects match your filters");
     println!("\n💡 Try:");
-    println!("  - No filters: pm ls");
-    println!("  - Longer time period: pm ls -r 30d");
-    println!("  - Different tags: pm ls --tags-any frontend,backend");
+    println!("  - No filters: {} ls", binary);
+    println!("  - Longer time period: {} ls -r 30d", binary);
+    println!("  - Different tags: {} ls --tags-any frontend,backend", binary);
 }
 
 pub fn display_switch_info(
@@ -191,7 +192,7 @@ pub fn display_suggestions(suggestions: &[String]) {
             println!("  - {}", suggestion);
         }
     } else {
-        println!("\n💡 {}", SUGGESTION_USE_PM_LS);
+        println!("\n💡 {}", crate::constants::get_suggestion_use_pm_ls());
     }
 }
 
@@ -224,7 +225,11 @@ pub fn display_init_success(
     config_dir: &std::path::Path,
     config_file_path: &std::path::Path,
 ) {
-    println!("\n✅ {}", SUCCESS_PM_INITIALIZED);
+    if crate::utils::is_dev_mode() {
+        println!("\n✅ PM (Dev Mode) initialized successfully 🔧");
+    } else {
+        println!("\n✅ {}", SUCCESS_PM_INITIALIZED);
+    }
     println!("📂 Config directory: {}", config_dir.display());
     println!("⚙️  Config file: {}", config_file_path.display());
 }

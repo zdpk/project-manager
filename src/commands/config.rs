@@ -116,7 +116,7 @@ pub async fn handle_validate() -> Result<()> {
     // Check if config file exists
     if !config_path.exists() {
         println!("❌ Configuration file not found: {}", config_path.display());
-        println!("💡 Run 'pm init' to create a configuration file");
+        println!("💡 Run '{} init' to create a configuration file", crate::utils::get_binary_name());
         return Err(anyhow::anyhow!("Config file not found"));
     }
 
@@ -207,7 +207,7 @@ pub async fn handle_reset() -> Result<()> {
     save_config(&default_config).await?;
 
     println!("✅ Configuration reset to defaults");
-    println!("💡 Run 'pm init' to set up your preferences again");
+    println!("💡 Run '{} init' to set up your preferences again", crate::utils::get_binary_name());
 
     Ok(())
 }
