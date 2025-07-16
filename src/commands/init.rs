@@ -122,12 +122,17 @@ pub async fn handle_init(
     // Show configuration file path info
     println!("📄 Configuration file: {}", config_path.display());
     if utils::is_dev_mode() {
-        println!("   (Development mode - using separate config from production)");
+        println!("   (Development mode - using same config as production)");
     }
     
-    // Step 5: Shell integration setup with backup support
+    // Step 5: Shell integration setup with backup support (skip in dev mode)
     println!();
-    let shell_backup = setup_shell_integration_with_backup(skip, replace).await?;
+    let shell_backup = if utils::is_dev_mode() {
+        println!("🔧 Skipping production shell integration (development mode)");
+        None
+    } else {
+        setup_shell_integration_with_backup(skip, replace).await?
+    };
     
     // Step 6: Save backup metadata if we created any backups
     if let Some(mut backup) = backup_entry {

@@ -194,7 +194,7 @@ fn create_fish_function_content(is_dev: bool) -> String {
          r#"# Always use _pm binary for development
     set pm_bin (command -v _pm)
     
-    # Development version uses separate config directory: ~/.config/pm-dev/"#,
+    # Development version uses same config directory: ~/.config/pm/"#,
          r#"# To remove this integration:
 #   rm ~/.config/fish/functions/_pm.fish
 #
