@@ -1,19 +1,12 @@
 use clap::{CommandFactory, Parser};
 use pm::{
-    handle_command, handle_config_error, utils, Cli, Commands, PmError, init
+    handle_command, handle_config_error, Cli, Commands, PmError, init
 };
 
 #[tokio::main]
 async fn main() {
-    // Development binary requires dev features
-    if !cfg!(feature = "dev") {
-        eprintln!("❌ Error: Development binary built without dev features!");
-        eprintln!("💡 Correct usage: cargo build --bin _pm --features dev");
-        std::process::exit(1);
-    }
-
-    // Development mode is always enabled for _pm binary
-    std::env::set_var("PM_DEV_MODE", "true");
+    // This is the development binary  
+    // Both pm and _pm binaries now have identical functionality
 
     let cli = Cli::parse();
 
@@ -26,12 +19,13 @@ async fn main() {
     // If no command provided, show help
     let Some(command) = &cli.command else {
         let mut app = Cli::command();
+        app = app.name("_pm");
         app.print_help().unwrap();
         
         // Show additional dev mode info
         println!("\n🔧 Development Mode Information:");
         println!("   Binary: _pm (development version)");
-        println!("   Config: Uses separate dev config directory");
+        println!("   Config: Uses separate dev config (~/.config/pm/config-dev.yml)");
         println!("   Shell integration: Uses _pm functions");
         return;
     };

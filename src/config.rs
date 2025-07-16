@@ -84,11 +84,9 @@ impl Default for Config {
 pub fn get_config_path() -> Result<PathBuf> {
     let home_dir = dirs::home_dir().context("Failed to find home directory")?;
     let config_dir = home_dir.join(CONFIG_DIR_NAME);
-    
-    // Use same directory but different filename for development mode
     let pm_dir = config_dir.join(CONFIG_SUBDIR_NAME);
     
-    let config_filename = if std::env::var("PM_DEV_MODE").is_ok() {
+    let config_filename = if crate::utils::is_dev_mode() {
         "config-dev.yml"
     } else {
         CONFIG_FILENAME
@@ -100,8 +98,6 @@ pub fn get_config_path() -> Result<PathBuf> {
 pub fn get_config_dir() -> Result<PathBuf> {
     let home_dir = dirs::home_dir().context("Failed to find home directory")?;
     let config_dir = home_dir.join(CONFIG_DIR_NAME);
-    
-    // Always use the same directory for both dev and prod
     let pm_dir = config_dir.join(CONFIG_SUBDIR_NAME);
     
     Ok(pm_dir)
