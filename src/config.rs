@@ -86,7 +86,13 @@ pub fn get_config_path() -> Result<PathBuf> {
     let config_dir = home_dir.join(CONFIG_DIR_NAME);
     let pm_dir = config_dir.join(CONFIG_SUBDIR_NAME);
     
-    Ok(pm_dir.join(CONFIG_FILENAME))
+    let config_filename = if crate::utils::is_dev_mode() {
+        "config-dev.yml"
+    } else {
+        CONFIG_FILENAME
+    };
+    
+    Ok(pm_dir.join(config_filename))
 }
 
 pub fn get_config_dir() -> Result<PathBuf> {

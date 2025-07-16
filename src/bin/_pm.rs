@@ -19,12 +19,13 @@ async fn main() {
     // If no command provided, show help
     let Some(command) = &cli.command else {
         let mut app = Cli::command();
+        app = app.name("_pm");
         app.print_help().unwrap();
         
         // Show additional dev mode info
         println!("\n🔧 Development Mode Information:");
         println!("   Binary: _pm (development version)");
-        println!("   Config: Uses same config as pm");
+        println!("   Config: Uses separate dev config (~/.config/pm/config-dev.yml)");
         println!("   Shell integration: Uses _pm functions");
         return;
     };

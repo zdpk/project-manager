@@ -122,7 +122,7 @@ pub async fn handle_init(
     // Show configuration file path info
     println!("📄 Configuration file: {}", config_path.display());
     if utils::is_dev_mode() {
-        println!("   (Development mode - using same config as production)");
+        println!("   (Development mode - using separate config: config-dev.yml)");
     }
     
     // Step 5: Shell integration setup with backup support (skip in dev mode)
