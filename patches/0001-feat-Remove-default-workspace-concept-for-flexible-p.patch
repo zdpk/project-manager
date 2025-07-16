@@ -1,0 +1,291 @@
+From 093264411371442d06076e1b3a829449f134ca34 Mon Sep 17 00:00:00 2001
+From: zdpk <zdpk@users.noreply.github.com>
+Date: Sun, 13 Jul 2025 19:09:55 +0900
+Subject: [PATCH] feat: Remove default workspace concept for flexible project
+ management
+
+- Remove projects_root_dir field from Config struct
+- Remove workspace setup from initialization process
+- Update configuration validation to exclude workspace checks
+- Remove workspace-related prompts from config setup
+- Allow projects to be managed from any location
+- Update config diff and backup functions accordingly
+
+This change makes PM more flexible by allowing users to manage
+projects from any directory without being tied to a specific
+workspace location.
+---
+ src/commands/config.rs | 57 ------------------------------------------
+ src/commands/init.rs   | 36 ++++----------------------
+ src/config.rs          | 20 ++-------------
+ src/display.rs         |  2 --
+ 4 files changed, 7 insertions(+), 108 deletions(-)
+
+diff --git a/src/commands/config.rs b/src/commands/config.rs
+index 0844591..694435d 100644
+--- a/src/commands/config.rs
++++ b/src/commands/config.rs
+@@ -20,7 +20,6 @@ pub enum ExportFormat {
+ const VALID_KEYS: &[&str] = &[
+     "version",
+     "config_path",
+-    "projects_root_dir",
+     "editor",
+     "settings.auto_open_editor",
+     "settings.show_git_status",
+@@ -53,11 +52,6 @@ pub async fn handle_show() -> Result<()> {
+         &config.config_path.display().to_string(),
+         max_width,
+     );
+-    print_config_row(
+-        "Projects Root",
+-        &config.projects_root_dir.display().to_string(),
+-        max_width,
+-    );
+     print_config_row("Editor", &config.editor, max_width);
+     print_config_row(
+         "Auto Open Editor",
+@@ -149,12 +143,6 @@ pub async fn handle_validate() -> Result<()> {
+             println!();
+             println!("{}", "📋 Validation summary:".blue().bold());
+ 
+-            // Projects root directory validation
+-            if config.projects_root_dir.exists() {
+-                println!("  - Projects root directory: {} exists", "✓".green());
+-            } else {
+-                println!("  - Projects root directory: {} does not exist", "❌".red());
+-            }
+ 
+             // Editor validation
+             if Command::new(&config.editor)
+@@ -342,7 +330,6 @@ pub async fn handle_list() -> Result<()> {
+     println!("{}", "🔧 Basic Settings:".yellow().bold());
+     list_config_key(&config_value, "version", "string");
+     list_config_key(&config_value, "config_path", "path");
+-    list_config_key(&config_value, "projects_root_dir", "path");
+     list_config_key(&config_value, "editor", "string");
+ 
+     println!();
+@@ -1125,14 +1112,6 @@ pub async fn handle_setup(quick: bool) -> Result<()> {
+     let mut config = Config::default();
+ 
+     // Projects root directory
+-    let default_root = dirs::home_dir()
+-        .unwrap_or_else(|| PathBuf::from("."))
+-        .join("projects");
+-
+-    let projects_root = handle_inquire_error(Text::new("Projects root directory:")
+-        .with_default(&default_root.display().to_string())
+-        .prompt())?;
+-    config.projects_root_dir = PathBuf::from(shellexpand::tilde(&projects_root).into_owned());
+ 
+     // Editor
+     let detected_editor = detect_editor();
+@@ -1158,23 +1137,6 @@ pub async fn handle_setup(quick: bool) -> Result<()> {
+     let recent_limit = handle_inquire_error(Select::new("Recent projects limit:", recent_limit_options).prompt())?;
+     config.settings.recent_projects_limit = recent_limit as u32;
+ 
+-    // Create projects directory if it doesn't exist
+-    if !config.projects_root_dir.exists() {
+-        let create_dir = handle_inquire_error(Confirm::new(&format!(
+-            "Projects directory '{}' doesn't exist. Create it?",
+-            config.projects_root_dir.display()
+-        ))
+-        .with_default(true)
+-        .prompt())?;
+-
+-        if create_dir {
+-            fs::create_dir_all(&config.projects_root_dir)?;
+-            println!(
+-                "📁 Created directory: {}",
+-                config.projects_root_dir.display().to_string().green()
+-            );
+-        }
+-    }
+ 
+     // Save configuration
+     save_config(&config).await?;
+@@ -1197,23 +1159,12 @@ async fn setup_quick() -> Result<()> {
+     let mut config = Config::default();
+ 
+     // Set sensible defaults
+-    if let Some(home) = dirs::home_dir() {
+-        config.projects_root_dir = home.join("projects");
+-    }
+ 
+     config.editor = detect_editor();
+     config.settings.auto_open_editor = true;
+     config.settings.show_git_status = true;
+     config.settings.recent_projects_limit = 15;
+ 
+-    // Create projects directory
+-    if !config.projects_root_dir.exists() {
+-        fs::create_dir_all(&config.projects_root_dir)?;
+-        println!(
+-            "📁 Created directory: {}",
+-            config.projects_root_dir.display().to_string().green()
+-        );
+-    }
+ 
+     save_config(&config).await?;
+ 
+@@ -1458,14 +1409,6 @@ async fn add_to_history(action: &str, details: &str) -> Result<()> {
+ 
+ fn show_config_diff(old: &Config, new: &Config) -> Result<()> {
+     // Simple field-by-field comparison
+-    if old.projects_root_dir != new.projects_root_dir {
+-        println!(
+-            "  {} {} → {}",
+-            "projects_root_dir:".yellow(),
+-            old.projects_root_dir.display().to_string().red(),
+-            new.projects_root_dir.display().to_string().green()
+-        );
+-    }
+ 
+     if old.editor != new.editor {
+         println!(
+diff --git a/src/commands/init.rs b/src/commands/init.rs
+index c8f59ec..08351f5 100644
+--- a/src/commands/init.rs
++++ b/src/commands/init.rs
+@@ -36,19 +36,6 @@ pub async fn handle_init() -> Result<()> {
+         PathBuf::from(shellexpand::tilde(&config_input).to_string())
+     };
+ 
+-    // Step 2: Projects directory configuration
+-    let projects_root_dir = {
+-        let default_workspace = dirs::home_dir()
+-            .map(|home| home.join("workspace"))
+-            .unwrap_or_else(|| PathBuf::from("~/workspace"));
+-
+-        let dir_input = handle_inquire_error(Text::new("Projects root directory:")
+-            .with_default(&default_workspace.to_string_lossy())
+-            .with_help_message("Where your projects will be stored (press Enter for default)")
+-            .prompt())?;
+-
+-        PathBuf::from(shellexpand::tilde(&dir_input).to_string())
+-    };
+ 
+     // Step 3: Editor configuration
+     let editor_options = vec![
+@@ -85,18 +72,6 @@ pub async fn handle_init() -> Result<()> {
+         .with_default(true)
+         .prompt())?;
+ 
+-    // Create the projects root directory if it doesn't exist
+-    if !projects_root_dir.exists() {
+-        println!(
+-            "\n📁 Creating projects root directory: {}",
+-            projects_root_dir.display()
+-        );
+-        if let Err(e) = std::fs::create_dir_all(&projects_root_dir) {
+-            display_error("Failed to create directory", &e.to_string());
+-            println!("   Path: {}", projects_root_dir.display());
+-            return Err(PmError::DirectoryCreationFailed.into());
+-        }
+-    }
+ 
+     // Create the config directory if it doesn't exist
+     if !config_dir_path.exists() {
+@@ -115,7 +90,6 @@ pub async fn handle_init() -> Result<()> {
+     let config = Config {
+         version: crate::constants::CONFIG_VERSION.to_string(),
+         config_path: config_dir_path.clone(),
+-        projects_root_dir: projects_root_dir.clone(),
+         editor,
+         settings: ConfigSettings {
+             auto_open_editor,
+@@ -127,14 +101,14 @@ pub async fn handle_init() -> Result<()> {
+     };
+ 
+     save_config(&config).await?;
+-    display_init_success(&config_dir_path, &projects_root_dir, &config_path);
++    display_init_success(&config_dir_path, &config_path);
+ 
+     // Show next steps for using PM
+     println!("\n🎯 Next steps:");
+-    println!("  pm project add <path>          # Add your first project");
+-    println!("  pm github scan                 # Scan for existing repositories");
+-    println!("  pm github clone <owner>/<repo> # Clone specific repository");
+-    println!("  pm github clone                # Browse and select repositories");
++    println!("  pm add <path>          # Add your first project");
++    println!("  pm scan                # Scan for existing repositories");
++    println!("  pm clone <owner>/<repo> # Clone specific repository");
++    println!("  pm clone               # Browse and select repositories");
+     
+     println!("\n📖 Use 'pm --help' to see all available commands");
+ 
+diff --git a/src/config.rs b/src/config.rs
+index 9518134..eb5c85d 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -25,11 +25,6 @@ pub struct Config {
+         example = "config_path_example"
+     )]
+     pub config_path: PathBuf,
+-    #[schemars(
+-        description = "Root directory where your projects are located",
+-        example = "projects_root_example"
+-    )]
+-    pub projects_root_dir: PathBuf,
+     #[serde(default = "default_editor")]
+     #[schemars(description = "Default editor command", example = "editor_example")]
+     pub editor: String,
+@@ -84,9 +79,6 @@ fn config_path_example() -> &'static str {
+     "~/.config/pm"
+ }
+ 
+-fn projects_root_example() -> &'static str {
+-    "~/workspace"
+-}
+ 
+ fn editor_example() -> &'static str {
+     "hx"
+@@ -97,7 +89,6 @@ impl Default for Config {
+         Self {
+             version: CONFIG_VERSION.to_string(),
+             config_path: PathBuf::new(),
+-            projects_root_dir: PathBuf::new(),
+             editor: String::new(), // 빈 문자열로 초기화
+             settings: ConfigSettings::default(),
+             projects: HashMap::new(),
+@@ -245,18 +236,11 @@ impl Config {
+     }
+ }
+ 
+-fn validate_config(config: &Config) -> Result<()> {
++fn validate_config(_config: &Config) -> Result<()> {
+     // For now, we'll do basic validation without JSON schema
+     // Full schema validation will be implemented in Phase 2
+ 
+-    // Basic validations
+-    if !config.projects_root_dir.exists() {
+-        return Err(anyhow::anyhow!(
+-            "Projects root directory does not exist: {}",
+-            config.projects_root_dir.display()
+-        ));
+-    }
+-
++    // Basic validations would go here
+     Ok(())
+ }
+ 
+diff --git a/src/display.rs b/src/display.rs
+index 964e9c9..7eb3c7f 100644
+--- a/src/display.rs
++++ b/src/display.rs
+@@ -197,11 +197,9 @@ pub fn display_editor_error(error: &str) {
+ 
+ pub fn display_init_success(
+     config_dir: &std::path::Path,
+-    projects_root: &std::path::Path,
+     config_file_path: &std::path::Path,
+ ) {
+     println!("\n✅ {}", SUCCESS_PM_INITIALIZED);
+     println!("📂 Config directory: {}", config_dir.display());
+-    println!("📁 Projects root: {}", projects_root.display());
+     println!("⚙️  Config file: {}", config_file_path.display());
+ }
+-- 
+2.47.0
+
