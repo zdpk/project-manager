@@ -85,26 +85,24 @@ pub fn get_config_path() -> Result<PathBuf> {
     let home_dir = dirs::home_dir().context("Failed to find home directory")?;
     let config_dir = home_dir.join(CONFIG_DIR_NAME);
     
-    // Use separate directory for development mode
-    let pm_dir = if std::env::var("PM_DEV_MODE").is_ok() {
-        config_dir.join("pm-dev")
+    // Use same directory but different filename for development mode
+    let pm_dir = config_dir.join(CONFIG_SUBDIR_NAME);
+    
+    let config_filename = if std::env::var("PM_DEV_MODE").is_ok() {
+        "config-dev.yml"
     } else {
-        config_dir.join(CONFIG_SUBDIR_NAME)
+        CONFIG_FILENAME
     };
     
-    Ok(pm_dir.join(CONFIG_FILENAME))
+    Ok(pm_dir.join(config_filename))
 }
 
 pub fn get_config_dir() -> Result<PathBuf> {
     let home_dir = dirs::home_dir().context("Failed to find home directory")?;
     let config_dir = home_dir.join(CONFIG_DIR_NAME);
     
-    // Use separate directory for development mode
-    let pm_dir = if std::env::var("PM_DEV_MODE").is_ok() {
-        config_dir.join("pm-dev")
-    } else {
-        config_dir.join(CONFIG_SUBDIR_NAME)
-    };
+    // Always use the same directory for both dev and prod
+    let pm_dir = config_dir.join(CONFIG_SUBDIR_NAME);
     
     Ok(pm_dir)
 }

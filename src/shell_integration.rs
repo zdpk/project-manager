@@ -5,6 +5,7 @@ use inquire::{Confirm, Select};
 use std::path::{Path, PathBuf};
 use tokio::fs;
 use crate::backup::{BackupEntry, BackupReason, create_multi_file_backup};
+use crate::utils;
 
 #[derive(Debug, Clone)]
 enum ConflictAction {
@@ -294,9 +295,10 @@ async fn setup_fish_integration() -> Result<()> {
     let pm_fish_content = create_fish_function_content(false); // Production mode
     fs::write(&pm_fish_path, pm_fish_content).await?;
 
+    let binary_name = utils::get_binary_name();
     println!("🐠 Fish shell integration installed successfully");
     println!("   Function file: {}", pm_fish_path.display());
-    println!("   Usage: pm sw <project> will now change your shell directory");
+    println!("   Usage: {} sw <project> will now change your shell directory", binary_name);
 
     Ok(())
 }
@@ -330,12 +332,12 @@ pub async fn setup_shell_integration_for_init() -> Result<()> {
     
     let should_setup = Confirm::new(&format!("Setup {} shell integration for directory switching?", shell_name))
         .with_default(true)
-        .with_help_message("This will allow 'pm sw' to change your shell's current directory")
+        .with_help_message(&format!("This will allow '{} sw' to change your shell's current directory", utils::get_binary_name()))
         .prompt()?;
 
     if !should_setup {
         println!("⏭️  Skipped shell integration setup");
-        println!("💡 You can manually setup later or run 'pm init' again");
+        println!("💡 You can manually setup later or run '{} init' again", utils::get_binary_name());
         return Ok(());
     }
 
@@ -476,10 +478,11 @@ async fn setup_zsh_integration() -> Result<()> {
         println!("📝 Added source line to .zshrc");
     }
     
+    let binary_name = utils::get_binary_name();
     println!("🐚 Zsh shell integration installed successfully");
     println!("   Function file: {}", zsh_file_path.display());
     println!("   Sourced from: {}", zshrc_path.display());
-    println!("   Usage: pm sw <project> will now change your shell directory");
+    println!("   Usage: {} sw <project> will now change your shell directory", binary_name);
     
     Ok(())
 }
@@ -551,10 +554,11 @@ async fn setup_bash_integration() -> Result<()> {
         println!("📝 Added source line to .bashrc");
     }
     
+    let binary_name = utils::get_binary_name();
     println!("🐚 Bash shell integration installed successfully");
     println!("   Function file: {}", bash_file_path.display());
     println!("   Sourced from: {}", bashrc_path.display());
-    println!("   Usage: pm sw <project> will now change your shell directory");
+    println!("   Usage: {} sw <project> will now change your shell directory", binary_name);
     
     Ok(())
 }
@@ -865,7 +869,7 @@ async fn setup_dev_fish_integration() -> Result<()> {
     
     println!("🐠 Fish development shell integration installed");
     println!("   Function file: {}", pm_dev_fish_path.display());
-    println!("   Usage: _pm sw <project> will now change your shell directory");
+    println!("   Usage: {} sw <project> will now change your shell directory", utils::get_binary_name());
     
     Ok(())
 }
@@ -913,7 +917,7 @@ async fn setup_dev_zsh_integration() -> Result<()> {
     
     println!("🔧 Zsh development shell integration installed");
     println!("   Function file: {}", zsh_dev_file_path.display());
-    println!("   Usage: _pm sw <project> will now change your shell directory");
+    println!("   Usage: {} sw <project> will now change your shell directory", utils::get_binary_name());
     println!("   Run: source ~/.zshrc or restart your shell");
     
     Ok(())
@@ -962,7 +966,7 @@ async fn setup_dev_bash_integration() -> Result<()> {
     
     println!("🔧 Bash development shell integration installed");
     println!("   Function file: {}", bash_dev_file_path.display());
-    println!("   Usage: _pm sw <project> will now change your shell directory");
+    println!("   Usage: {} sw <project> will now change your shell directory", utils::get_binary_name());
     println!("   Run: source ~/.bashrc or restart your shell");
     
     Ok(())

@@ -13,13 +13,17 @@ categories = ["command-line-utilities", "development-tools"]
 default = []
 dev = []
 
+[lib]
+name = "pm"
+path = "src/lib.rs"
+
 [[bin]]
 name = "pm"
-path = "src/main.rs"
+path = "src/bin/pm.rs"
 
 [[bin]]
 name = "_pm"
-path = "src/main.rs"
+path = "src/bin/_pm.rs"
 required-features = ["dev"]
 
 [dependencies]

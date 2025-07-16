@@ -439,7 +439,9 @@ project-manager/
 ├── docs/                  # Comprehensive documentation
 │   ├── ARCHITECTURE.md    # System architecture
 │   ├── CLI_USAGE.md       # Detailed CLI guide
-│   └── COMMANDS.md        # Command reference
+│   ├── COMMANDS.md        # Command reference
+│   ├── CONFIG_PATHS.md    # Configuration file structure
+│   └── MIGRATION_GUIDE.md # Version migration guide
 ├── schemas/               # JSON schemas for validation
 ├── script/                # Installation scripts
 ├── .github/workflows/     # CI/CD workflows
