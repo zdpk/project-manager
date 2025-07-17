@@ -5,12 +5,15 @@ use std::process::Command;
 
 /// Detect if we're running in development mode based on binary name
 pub fn is_dev_mode() -> bool {
-    std::env::args().next()
-        .map(|arg0| std::path::Path::new(&arg0)
-            .file_name()
-            .and_then(|name| name.to_str())
-            .map(|name| name == "_pm")
-            .unwrap_or(false))
+    std::env::args()
+        .next()
+        .map(|arg0| {
+            std::path::Path::new(&arg0)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map(|name| name == "_pm")
+                .unwrap_or(false)
+        })
         .unwrap_or(false)
 }
 
@@ -139,6 +142,102 @@ pub fn get_git_status(path: &Path) -> Result<Option<String>> {
 #[allow(dead_code)]
 pub fn is_git_repository(path: &Path) -> bool {
     path.join(".git").exists()
+}
+
+/// Check if a project has direnv configuration
+pub fn has_direnv_config(path: &Path) -> bool {
+    path.join(".envrc").exists()
+}
+
+/// Check if direnv is currently active in the project
+pub fn is_direnv_active(path: &Path) -> bool {
+    if !has_direnv_config(path) {
+        return false;
+    }
+
+    // Check if DIRENV_DIR environment variable is set and matches the project path
+    if let Ok(direnv_dir) = std::env::var("DIRENV_DIR") {
+        if let Ok(canonical_path) = path.canonicalize() {
+            return direnv_dir == canonical_path.to_string_lossy();
+        }
+    }
+
+    false
+}
+
+/// Get list of active git hooks in a project
+pub fn get_active_git_hooks(path: &Path) -> Vec<String> {
+    let hooks_dir = path.join(".git").join("hooks");
+    if !hooks_dir.exists() {
+        return Vec::new();
+    }
+
+    let mut active_hooks = Vec::new();
+    let hook_names = [
+        "pre-commit",
+        "commit-msg",
+        "pre-push",
+        "post-commit",
+        "post-checkout",
+        "pre-rebase",
+    ];
+
+    for hook_name in hook_names {
+        let hook_path = hooks_dir.join(hook_name);
+        if hook_path.exists() && hook_path.is_file() {
+            // Check if it's executable
+            if let Ok(metadata) = std::fs::metadata(&hook_path) {
+                use std::os::unix::fs::PermissionsExt;
+                if metadata.permissions().mode() & 0o111 != 0 {
+                    active_hooks.push(hook_name.to_string());
+                }
+            }
+        }
+    }
+
+    active_hooks
+}
+
+/// Check if project has PM hooks template available
+pub fn has_pm_hooks_template(path: &Path) -> bool {
+    path.join("hooks").exists()
+}
+
+/// Get the status of PM hooks installation
+pub fn get_pm_hooks_status(path: &Path) -> String {
+    let hooks_dir = path.join(".git").join("hooks");
+    let pm_hooks_dir = path.join("hooks");
+
+    if !pm_hooks_dir.exists() {
+        return "No PM hooks template".to_string();
+    }
+
+    if !hooks_dir.exists() {
+        return "Not a git repository".to_string();
+    }
+
+    let pm_hooks = ["pre-commit", "commit-msg", "pre-push"];
+    let mut installed_count = 0;
+
+    for hook_name in pm_hooks {
+        let hook_path = hooks_dir.join(hook_name);
+        let pm_hook_path = pm_hooks_dir.join(hook_name);
+
+        if hook_path.exists() && pm_hook_path.exists() {
+            // Check if it's a symlink pointing to PM hooks
+            if let Ok(link_target) = std::fs::read_link(&hook_path) {
+                if link_target.to_string_lossy().contains("hooks/") {
+                    installed_count += 1;
+                }
+            }
+        }
+    }
+
+    match installed_count {
+        0 => "Not installed".to_string(),
+        count if count == pm_hooks.len() => "Fully installed".to_string(),
+        count => format!("Partially installed ({}/{})", count, pm_hooks.len()),
+    }
 }
 
 #[allow(dead_code)]
