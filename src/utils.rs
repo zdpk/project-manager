@@ -5,12 +5,15 @@ use std::process::Command;
 
 /// Detect if we're running in development mode based on binary name
 pub fn is_dev_mode() -> bool {
-    std::env::args().next()
-        .map(|arg0| std::path::Path::new(&arg0)
-            .file_name()
-            .and_then(|name| name.to_str())
-            .map(|name| name == "_pm")
-            .unwrap_or(false))
+    std::env::args()
+        .next()
+        .map(|arg0| {
+            std::path::Path::new(&arg0)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map(|name| name == "_pm")
+                .unwrap_or(false)
+        })
         .unwrap_or(false)
 }
 
@@ -140,6 +143,7 @@ pub fn get_git_status(path: &Path) -> Result<Option<String>> {
 pub fn is_git_repository(path: &Path) -> bool {
     path.join(".git").exists()
 }
+
 
 #[allow(dead_code)]
 pub fn detect_project_language(path: &Path) -> Option<String> {

@@ -11,6 +11,7 @@ pub mod config;
 pub mod constants;
 pub mod display;
 pub mod error;
+pub mod extensions;
 pub mod shell_integration;
 pub mod tag_commands;
 pub mod utils;
@@ -42,7 +43,7 @@ pub struct Cli {
     /// Show version information
     #[arg(short = 'v', long = "version")]
     pub version: bool,
-    
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
@@ -102,9 +103,7 @@ pub enum Commands {
 
     /// Switch to a project directory (alias: sw)
     #[command(alias = "sw")]
-    Switch {
-        name: String,
-    },
+    Switch { name: String },
 
     /// Scan for Git repositories and add them to PM (alias: sc)
     #[command(alias = "sc")]
@@ -130,7 +129,7 @@ pub enum Commands {
     Remove {
         /// Project name (optional for interactive mode)
         project: Option<String>,
-        
+
         /// Skip confirmation prompt
         #[arg(short = 'y', long)]
         yes: bool,
@@ -155,7 +154,7 @@ pub enum Commands {
         /// Skip initialization if config exists (non-interactive)
         #[arg(long)]
         skip: bool,
-        
+
         /// Replace existing config with backup (non-interactive)
         #[arg(long)]
         replace: bool,
@@ -166,12 +165,22 @@ pub enum Commands {
         /// Output format (text, json)
         #[arg(long, default_value = "text")]
         format: String,
-        
+
         /// Quiet mode for prompt integration
         #[arg(short, long)]
         quiet: bool,
     },
 
+    /// Manage extensions (alias: ext)
+    #[command(alias = "ext")]
+    Extension {
+        #[command(subcommand)]
+        action: ExtensionAction,
+    },
+
+    /// External extension commands
+    #[command(external_subcommand)]
+    External(Vec<String>),
 }
 
 
@@ -179,28 +188,28 @@ pub enum Commands {
 pub enum BackupAction {
     /// List all available backups
     List,
-    
+
     /// Restore a specific backup or select interactively
     Restore {
         /// Backup ID to restore (optional for interactive mode)
         backup_id: Option<String>,
-        
+
         /// Skip confirmation prompt
         #[arg(short = 'f', long)]
         force: bool,
     },
-    
+
     /// Clean old backups (keep most recent N)
     Clean {
         /// Number of backups to keep
         #[arg(default_value = "5")]
         keep: usize,
-        
+
         /// Skip confirmation prompt
         #[arg(short = 'f', long)]
         force: bool,
     },
-    
+
     /// Show backup system status
     Status,
 }
@@ -359,6 +368,51 @@ pub enum TemplateCommands {
     },
 }
 
+#[derive(Subcommand)]
+pub enum ExtensionAction {
+    /// Install an extension
+    Install {
+        /// Extension name
+        name: String,
+        /// Installation source (URL, GitHub repo, or local path)
+        #[arg(long)]
+        source: Option<String>,
+        /// Specific version to install
+        #[arg(long)]
+        version: Option<String>,
+    },
+    /// Uninstall an extension
+    Uninstall {
+        /// Extension name
+        name: String,
+        /// Force removal without confirmation
+        #[arg(long)]
+        force: bool,
+    },
+    /// List installed extensions
+    #[command(alias = "ls")]
+    List {
+        /// Show all available extensions (not just installed)
+        #[arg(long)]
+        all: bool,
+    },
+    /// Show extension information
+    Info {
+        /// Extension name
+        name: String,
+    },
+    /// Update extensions
+    Update {
+        /// Extension name (update all if not specified)
+        name: Option<String>,
+    },
+    /// Search for extensions
+    Search {
+        /// Search query
+        query: String,
+    },
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 #[schemars(title = "Project", description = "A managed project")]
 pub struct Project {
@@ -393,9 +447,7 @@ pub async fn handle_command(command: &Commands) -> anyhow::Result<()> {
             name,
             tags,
             description,
-        } => {
-            project::handle_add(path, name, tags, description).await
-        }
+        } => project::handle_add(path, name, tags, description).await,
         Commands::Clone { repo, directory } => {
             project::handle_clone(repo.as_deref(), directory.as_deref()).await
         }
@@ -405,9 +457,7 @@ pub async fn handle_command(command: &Commands) -> anyhow::Result<()> {
             recent,
             limit,
             verbose,
-        } => {
-            project::handle_list(tags, tags_any, recent, limit, *verbose).await
-        }
+        } => project::handle_list(tags, tags_any, recent, limit, *verbose).await,
         Commands::Switch { name } => {
             let mut config = load_config().await?;
             project::handle_switch(&mut config, name).await
@@ -415,96 +465,62 @@ pub async fn handle_command(command: &Commands) -> anyhow::Result<()> {
         Commands::Scan {
             directory,
             show_all,
-        } => {
-            project::handle_scan(directory.as_deref(), *show_all).await.map(|_| ())
-        }
+        } => project::handle_scan(directory.as_deref(), *show_all)
+            .await
+            .map(|_| ()),
         Commands::Tag { action } => match action {
-            TagAction::Add { project_name, tags } => {
-                tag::handle_tag_add(project_name, tags).await
-            }
+            TagAction::Add { project_name, tags } => tag::handle_tag_add(project_name, tags).await,
             TagAction::Remove { project_name, tags } => {
                 tag::handle_tag_remove(project_name, tags).await
             }
-            TagAction::List {} => {
-                tag::handle_tag_list().await
-            }
-            TagAction::Show { project_name } => {
-                tag::handle_tag_show(project_name.as_deref()).await
-            }
+            TagAction::List {} => tag::handle_tag_list().await,
+            TagAction::Show { project_name } => tag::handle_tag_show(project_name.as_deref()).await,
         },
-        Commands::Remove { project, yes } => {
-            project::handle_remove(project.as_deref(), *yes).await
+        Commands::Remove { project, yes } => project::handle_remove(project.as_deref(), *yes).await,
+        Commands::Config { command } => {
+            match command.as_ref().unwrap_or(&ConfigCommands::Show {}) {
+                ConfigCommands::Show {} => config_cmd::handle_show().await,
+                ConfigCommands::Edit {} => config_cmd::handle_edit().await,
+                ConfigCommands::Validate {} => config_cmd::handle_validate().await,
+                ConfigCommands::Reset {} => config_cmd::handle_reset().await,
+                ConfigCommands::Get { key } => config_cmd::handle_get(key).await,
+                ConfigCommands::Set { key, value } => config_cmd::handle_set(key, value).await,
+                ConfigCommands::List {} => config_cmd::handle_list().await,
+                ConfigCommands::Backup(backup_command) => match backup_command {
+                    BackupCommands::Create { name } => {
+                        config_cmd::handle_backup_create(name.as_deref()).await
+                    }
+                    BackupCommands::Restore { name } => {
+                        config_cmd::handle_backup_restore(name).await
+                    }
+                    BackupCommands::List {} => config_cmd::handle_backup_list().await,
+                    BackupCommands::Delete { name } => config_cmd::handle_backup_delete(name).await,
+                },
+                ConfigCommands::Template(template_command) => match template_command {
+                    TemplateCommands::List {} => config_cmd::handle_template_list().await,
+                    TemplateCommands::Apply { name } => {
+                        config_cmd::handle_template_apply(name).await
+                    }
+                    TemplateCommands::Save { name, description } => {
+                        config_cmd::handle_template_save(name, description.as_deref()).await
+                    }
+                    TemplateCommands::Delete { name } => {
+                        config_cmd::handle_template_delete(name).await
+                    }
+                },
+                ConfigCommands::Setup { quick } => config_cmd::handle_setup(*quick).await,
+                ConfigCommands::Export { format, file } => {
+                    config_cmd::handle_export(format, file.as_deref()).await
+                }
+                ConfigCommands::Import { file, force } => {
+                    config_cmd::handle_import(file, *force).await
+                }
+                ConfigCommands::Diff { backup } => config_cmd::handle_diff(backup.as_deref()).await,
+                ConfigCommands::History { limit } => config_cmd::handle_history(*limit).await,
+            }
         }
-        Commands::Config { command } => match command.as_ref().unwrap_or(&ConfigCommands::Show {}) {
-            ConfigCommands::Show {} => {
-                config_cmd::handle_show().await
-            }
-            ConfigCommands::Edit {} => {
-                config_cmd::handle_edit().await
-            }
-            ConfigCommands::Validate {} => {
-                config_cmd::handle_validate().await
-            }
-            ConfigCommands::Reset {} => {
-                config_cmd::handle_reset().await
-            }
-            ConfigCommands::Get { key } => {
-                config_cmd::handle_get(key).await
-            }
-            ConfigCommands::Set { key, value } => {
-                config_cmd::handle_set(key, value).await
-            }
-            ConfigCommands::List {} => {
-                config_cmd::handle_list().await
-            }
-            ConfigCommands::Backup(backup_command) => match backup_command {
-                BackupCommands::Create { name } => {
-                    config_cmd::handle_backup_create(name.as_deref()).await
-                }
-                BackupCommands::Restore { name } => {
-                    config_cmd::handle_backup_restore(name).await
-                }
-                BackupCommands::List {} => {
-                    config_cmd::handle_backup_list().await
-                }
-                BackupCommands::Delete { name } => {
-                    config_cmd::handle_backup_delete(name).await
-                }
-            },
-            ConfigCommands::Template(template_command) => match template_command {
-                TemplateCommands::List {} => {
-                    config_cmd::handle_template_list().await
-                }
-                TemplateCommands::Apply { name } => {
-                    config_cmd::handle_template_apply(name).await
-                }
-                TemplateCommands::Save { name, description } => {
-                    config_cmd::handle_template_save(name, description.as_deref()).await
-                }
-                TemplateCommands::Delete { name } => {
-                    config_cmd::handle_template_delete(name).await
-                }
-            },
-            ConfigCommands::Setup { quick } => {
-                config_cmd::handle_setup(*quick).await
-            }
-            ConfigCommands::Export { format, file } => {
-                config_cmd::handle_export(format, file.as_deref()).await
-            }
-            ConfigCommands::Import { file, force } => {
-                config_cmd::handle_import(file, *force).await
-            }
-            ConfigCommands::Diff { backup } => {
-                config_cmd::handle_diff(backup.as_deref()).await
-            }
-            ConfigCommands::History { limit } => {
-                config_cmd::handle_history(*limit).await
-            }
-        },
         Commands::Backup { action } => match action {
-            BackupAction::List => {
-                backup_cmd::handle_backup_list().await
-            }
+            BackupAction::List => backup_cmd::handle_backup_list().await,
             BackupAction::Restore { backup_id, force } => {
                 if let Some(id) = backup_id {
                     backup_cmd::handle_backup_restore(id, *force).await
@@ -515,15 +531,17 @@ pub async fn handle_command(command: &Commands) -> anyhow::Result<()> {
             BackupAction::Clean { keep, force } => {
                 backup_cmd::handle_backup_clean(*keep, *force).await
             }
-            BackupAction::Status => {
-                backup_cmd::handle_backup_status().await
-            }
+            BackupAction::Status => backup_cmd::handle_backup_status().await,
         },
-        Commands::Init { skip, replace } => {
-            init::handle_init(*skip, *replace, false).await
+        Commands::Init { skip, replace } => init::handle_init(*skip, *replace, false).await,
+        Commands::Status { format, quiet } => status::handle_status(format, *quiet).await,
+        Commands::Extension { action } => {
+            // Handle extension management commands
+            extensions::handle_extension_command(action).await
         }
-        Commands::Status { format, quiet } => {
-            status::handle_status(format, *quiet).await
+        Commands::External(args) => {
+            // Handle external extension commands
+            extensions::execute_extension_command(args).await
         }
     }
 }

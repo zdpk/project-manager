@@ -4,6 +4,7 @@ A fast, terminal-based project management CLI tool written in Rust. PM helps dev
 
 ## Features
 
+### Core Project Management
 - **Interactive Setup**: Guided initialization with auto-detection and GitHub integration
 - **Fast Project Switching**: Switch between projects in under 1 second
 - **Smart Project Discovery**: Automatic detection of Git repositories and programming languages
@@ -15,6 +16,20 @@ A fast, terminal-based project management CLI tool written in Rust. PM helps dev
 - **Shell Integration**: Automatic shell setup for Fish, Bash, and Zsh with directory changing
 - **Starship Prompt Integration**: Show project info in your terminal prompt with one command
 - **Rich CLI Interface**: Colorful output with progress indicators and interactive prompts
+
+### 🔌 Extension System
+- **Modular Architecture**: Lightweight core with extensible functionality
+- **No-Prefix Commands**: Extensions integrate seamlessly (`pm docker ps` not `pm-ext-docker`)
+- **Easy Installation**: One-command extension installation and management
+- **Developer-Friendly**: Simple extension development in any language
+- **Cross-Platform**: Extensions work on Linux, macOS, and Windows
+
+### Official Extensions (Available)
+- **pm-ext-hooks**: Enhanced Git hooks with `.githook/` directory support
+- **pm-ext-direnv**: Auto-activation direnv environment management  
+- **pm-ext-1password**: Secure `.pw.yml` → `.env` file generation
+
+> **Migration Notice**: Built-in hooks and direnv features have been moved to extensions. See [Migration Guide](docs/MIGRATION_GUIDE.md) for upgrade instructions.
 
 ## Installation
 
@@ -95,6 +110,17 @@ pm sw my-project
 
 # Check project status (useful for prompt integration)
 pm status
+
+# Extension management
+pm ext list                    # List installed extensions
+pm ext install hooks           # Install hooks extension
+pm ext install direnv          # Install direnv extension  
+pm ext install 1password       # Install 1Password extension
+
+# Use extensions (no prefix required)
+pm hooks status               # Check Git hooks status
+pm direnv activate            # Auto-activate direnv
+pm 1password generate dev     # Generate .env.dev from .pw.yml
 ```
 
 ### Initial Setup Example
