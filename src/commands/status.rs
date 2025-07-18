@@ -1,8 +1,7 @@
 use crate::config::{get_machine_id, load_config, Config};
 use crate::utils::{
-    detect_project_language, get_active_git_hooks, get_git_current_branch, get_git_remote_url,
-    get_last_git_commit_time, get_pm_hooks_status, has_direnv_config, is_direnv_active,
-    is_git_repository,
+    detect_project_language, get_git_current_branch, get_git_remote_url,
+    get_last_git_commit_time, is_git_repository,
 };
 use anyhow::Result;
 use serde_json::json;
@@ -32,8 +31,6 @@ pub async fn handle_status(format: &str, quiet: bool) -> Result<()> {
     if let Some(project) = project {
         // Get additional information
         let git_info = get_git_info(&current_dir).await;
-        let direnv_info = get_direnv_info(&current_dir);
-        let hooks_info = get_hooks_info(&current_dir);
         let machine_id = get_machine_id();
         let machine_metadata = config.machine_metadata.get(&machine_id);
 
@@ -48,8 +45,6 @@ pub async fn handle_status(format: &str, quiet: bool) -> Result<()> {
                         "language": detect_project_language(&project.path).unwrap_or_else(|| "unknown".to_string())
                     },
                     "git": git_info,
-                    "direnv": direnv_info,
-                    "hooks": hooks_info,
                     "metadata": {
                         "access_count": machine_metadata.map(|m| m.access_counts.get(&project.id).unwrap_or(&0)).unwrap_or(&0),
                         "last_accessed": machine_metadata.and_then(|m| m.last_accessed.get(&project.id))
@@ -123,45 +118,6 @@ pub async fn handle_status(format: &str, quiet: bool) -> Result<()> {
                         println!("🌿 Git: {}{}", branch, changes_str);
                     }
 
-                    // Direnv information
-                    if direnv_info
-                        .get("has_config")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false)
-                    {
-                        let status = if direnv_info
-                            .get("is_active")
-                            .and_then(|v| v.as_bool())
-                            .unwrap_or(false)
-                        {
-                            "active"
-                        } else {
-                            "inactive"
-                        };
-                        println!("🌍 Direnv: {}", status);
-                    }
-
-                    // Hooks information
-                    if let Some(pm_hooks_status) =
-                        hooks_info.get("pm_hooks_status").and_then(|v| v.as_str())
-                    {
-                        if pm_hooks_status != "No PM hooks template" {
-                            println!("🔧 PM Hooks: {}", pm_hooks_status);
-                        }
-                    }
-
-                    if let Some(active_hooks) =
-                        hooks_info.get("active_hooks").and_then(|v| v.as_array())
-                    {
-                        if !active_hooks.is_empty() {
-                            let hooks_list: Vec<String> = active_hooks
-                                .iter()
-                                .filter_map(|v| v.as_str())
-                                .map(|s| s.to_string())
-                                .collect();
-                            println!("🪝 Active Hooks: {}", hooks_list.join(", "));
-                        }
-                    }
 
                     // Access information
                     if let Some(metadata) = machine_metadata {
@@ -248,19 +204,3 @@ fn has_git_changes(path: &PathBuf) -> bool {
     }
 }
 
-fn get_direnv_info(path: &Path) -> serde_json::Value {
-    json!({
-        "has_config": has_direnv_config(path),
-        "is_active": is_direnv_active(path)
-    })
-}
-
-fn get_hooks_info(path: &Path) -> serde_json::Value {
-    let active_hooks = get_active_git_hooks(path);
-    let pm_hooks_status = get_pm_hooks_status(path);
-
-    json!({
-        "active_hooks": active_hooks,
-        "pm_hooks_status": pm_hooks_status
-    })
-}

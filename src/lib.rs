@@ -11,6 +11,7 @@ pub mod config;
 pub mod constants;
 pub mod display;
 pub mod error;
+pub mod extensions;
 pub mod shell_integration;
 pub mod tag_commands;
 pub mod utils;
@@ -19,7 +20,7 @@ pub mod validation;
 pub use error::PmError;
 
 pub use commands::config::ExportFormat;
-pub use commands::{backup as backup_cmd, config as config_cmd, hooks, init, project, status, tag};
+pub use commands::{backup as backup_cmd, config as config_cmd, init, project, status, tag};
 pub use config::load_config;
 pub use constants::*;
 pub use display::display_error;
@@ -170,42 +171,18 @@ pub enum Commands {
         quiet: bool,
     },
 
-    /// Manage Git hooks (alias: hk)
-    #[command(alias = "hk")]
-    Hooks {
+    /// Manage extensions (alias: ext)
+    #[command(alias = "ext")]
+    Extension {
         #[command(subcommand)]
-        action: HookAction,
+        action: ExtensionAction,
     },
+
+    /// External extension commands
+    #[command(external_subcommand)]
+    External(Vec<String>),
 }
 
-#[derive(Subcommand)]
-pub enum HookAction {
-    /// Install PM hooks in the current project
-    Install {
-        /// Project path (optional, defaults to current directory)
-        #[arg(short, long)]
-        path: Option<PathBuf>,
-    },
-    /// Uninstall PM hooks from the current project
-    Uninstall {
-        /// Project path (optional, defaults to current directory)
-        #[arg(short, long)]
-        path: Option<PathBuf>,
-    },
-    /// List hooks status for the current project
-    #[command(alias = "ls")]
-    List {
-        /// Project path (optional, defaults to current directory)
-        #[arg(short, long)]
-        path: Option<PathBuf>,
-    },
-    /// Initialize PM hooks template in the current project
-    Init {
-        /// Project path (optional, defaults to current directory)
-        #[arg(short, long)]
-        path: Option<PathBuf>,
-    },
-}
 
 #[derive(Subcommand)]
 pub enum BackupAction {
@@ -391,6 +368,51 @@ pub enum TemplateCommands {
     },
 }
 
+#[derive(Subcommand)]
+pub enum ExtensionAction {
+    /// Install an extension
+    Install {
+        /// Extension name
+        name: String,
+        /// Installation source (URL, GitHub repo, or local path)
+        #[arg(long)]
+        source: Option<String>,
+        /// Specific version to install
+        #[arg(long)]
+        version: Option<String>,
+    },
+    /// Uninstall an extension
+    Uninstall {
+        /// Extension name
+        name: String,
+        /// Force removal without confirmation
+        #[arg(long)]
+        force: bool,
+    },
+    /// List installed extensions
+    #[command(alias = "ls")]
+    List {
+        /// Show all available extensions (not just installed)
+        #[arg(long)]
+        all: bool,
+    },
+    /// Show extension information
+    Info {
+        /// Extension name
+        name: String,
+    },
+    /// Update extensions
+    Update {
+        /// Extension name (update all if not specified)
+        name: Option<String>,
+    },
+    /// Search for extensions
+    Search {
+        /// Search query
+        query: String,
+    },
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 #[schemars(title = "Project", description = "A managed project")]
 pub struct Project {
@@ -513,18 +535,13 @@ pub async fn handle_command(command: &Commands) -> anyhow::Result<()> {
         },
         Commands::Init { skip, replace } => init::handle_init(*skip, *replace, false).await,
         Commands::Status { format, quiet } => status::handle_status(format, *quiet).await,
-        Commands::Hooks { action } => {
-            let config = load_config().await?;
-            match action {
-                HookAction::Install { path } => {
-                    hooks::install_hooks(&config, path.as_deref()).await
-                }
-                HookAction::Uninstall { path } => {
-                    hooks::uninstall_hooks(&config, path.as_deref()).await
-                }
-                HookAction::List { path } => hooks::list_hooks(&config, path.as_deref()).await,
-                HookAction::Init { path } => hooks::init_hooks(&config, path.as_deref()).await,
-            }
+        Commands::Extension { action } => {
+            // Handle extension management commands
+            extensions::handle_extension_command(action).await
+        }
+        Commands::External(args) => {
+            // Handle external extension commands
+            extensions::execute_extension_command(args).await
         }
     }
 }
