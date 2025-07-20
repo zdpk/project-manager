@@ -372,7 +372,7 @@ pub enum TemplateCommands {
 pub enum ExtensionAction {
     /// Install an extension
     Install {
-        /// Extension name
+        /// Extension name or path (use "." for current directory)
         name: String,
         /// Installation source (URL, GitHub repo, or local path)
         #[arg(long)]
@@ -380,6 +380,9 @@ pub enum ExtensionAction {
         /// Specific version to install
         #[arg(long)]
         version: Option<String>,
+        /// Install from local directory path (supports relative paths)
+        #[arg(long)]
+        local: bool,
     },
     /// Uninstall an extension
     Uninstall {
