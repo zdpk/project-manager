@@ -535,7 +535,8 @@ mod tests {
         let loaded_manager = RegistryManager::load_from_config(&config_path).await.unwrap();
         assert_eq!(loaded_manager.get_default_registry(), Some(&"test".to_string()));
         
-        let (name, loaded_config) = loaded_manager.list_registries().first().unwrap();
+        let registries = loaded_manager.list_registries();
+        let (name, loaded_config) = registries.first().unwrap();
         assert_eq!(name, &"test");
         assert_eq!(loaded_config.token, Some("secret".to_string()));
     }

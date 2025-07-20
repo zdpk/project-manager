@@ -178,6 +178,7 @@ pub enum Commands {
         action: ExtensionAction,
     },
 
+
     /// External extension commands
     #[command(external_subcommand)]
     External(Vec<String>),
@@ -468,6 +469,7 @@ pub enum ExtensionAction {
         action: RegistryAction,
     },
 }
+
 
 /// Registry management actions
 #[derive(Subcommand)]

@@ -649,7 +649,7 @@ async fn get_current_project_context() -> Result<String> {
 }
 
 /// Handle remote extension installation
-async fn handle_remote_install(name: &str, source: Option<&str>, version: Option<&str>, registry: Option<&str>, force: bool) -> Result<()> {
+async fn handle_remote_install(name: &str, _source: Option<&str>, version: Option<&str>, registry: Option<&str>, force: bool) -> Result<()> {
     println!("Installing extension '{}' from registry...", name);
     
     // Check if extension is already installed

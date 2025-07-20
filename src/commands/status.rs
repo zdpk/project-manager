@@ -6,7 +6,7 @@ use crate::utils::{
 use anyhow::Result;
 use serde_json::json;
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub async fn handle_status(format: &str, quiet: bool) -> Result<()> {
     let current_dir = env::current_dir()?;
