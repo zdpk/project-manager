@@ -3,11 +3,14 @@ pub mod discovery;
 pub mod manifest;
 pub mod manager;
 pub mod registry;
+pub mod remote;
+pub mod remote_install;
 
 pub use discovery::{discover_extensions, find_extension_binary};
 pub use manifest::{ExtensionManifest, ExtensionCommand};
 pub use manager::{ExtensionManager, handle_extension_command, execute_extension_command};
 pub use registry::ExtensionRegistry;
+pub use remote::{RegistryManager, RegistryClient, RemoteExtensionMetadata, SearchParams};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
