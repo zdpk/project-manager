@@ -34,7 +34,7 @@ pub async fn handle_init(
             ));
             println!("📁 Configuration file: {}", config_path.display());
             println!("\n💡 To reinitialize with backup:");
-            println!("   pm init --replace   # Backup existing and recreate");
+            println!("   {} init --replace   # Backup existing and recreate", utils::get_binary_name());
             return Ok(());
         } else if replace {
             // Non-interactive replace mode
@@ -52,7 +52,7 @@ pub async fn handle_init(
                     ));
                     println!("📁 Configuration file: {}", config_path.display());
                     println!("\n💡 To reinitialize with backup:");
-                    println!("   pm init --replace   # Backup existing and recreate");
+                    println!("   {} init --replace   # Backup existing and recreate", utils::get_binary_name());
                     return Ok(());
                 }
                 ConflictAction::Replace => {
@@ -139,21 +139,20 @@ pub async fn handle_init(
         println!("💾 Backup created successfully");
     }
     
-    // Step 7: Development mode setup (only in dev build)
+    // Step 7: Development mode setup (for _pm binary)
     if utils::is_dev_mode() {
-        #[cfg(feature = "dev")]
         setup_dev_environment().await?;
     }
     
 
     // Show next steps for using PM
+    let binary_name = utils::get_binary_name();
     println!("\n🎯 Next steps:");
-    println!("  pm add <path>          # Add your first project");
-    println!("  pm scan                # Scan for existing repositories");
-    println!("  pm clone <owner>/<repo> # Clone specific repository");
-    println!("  pm clone               # Browse and select repositories");
+    println!("  {} add <path>          # Add your first project", binary_name);
+    println!("  {} scan                # Scan for existing repositories", binary_name);
+    println!("  {} clone <owner>/<repo> # Clone specific repository", binary_name);
+    println!("  {} clone               # Browse and select repositories", binary_name);
     
-    #[cfg(feature = "dev")]
     if dev {
         println!("\n🔧 Development mode enabled:");
         println!("  _PM_BINARY environment variable configured in shell files");
@@ -205,7 +204,6 @@ async fn setup_shell_integration_with_backup(
 }
 
 /// Setup development environment with _PM_BINARY
-#[cfg(feature = "dev")]
 async fn setup_dev_environment() -> Result<()> {
     println!("🔧 Setting up development environment...");
     
@@ -234,7 +232,6 @@ async fn setup_dev_environment() -> Result<()> {
     };
     
     // Add environment variable to shell files
-    #[cfg(feature = "dev")]
     if let Err(e) = shell_integration::add_dev_env_to_shell_files(&dev_binary_path).await {
         display_warning(&format!("Failed to add development environment to shell files: {}", e));
         println!("💡 You can manually set _PM_BINARY environment variable");
@@ -243,7 +240,6 @@ async fn setup_dev_environment() -> Result<()> {
     
     // Setup development shell integration for _pm
     println!("\n🔧 Setting up development shell integration...");
-    #[cfg(feature = "dev")]
     if let Err(e) = shell_integration::setup_dev_shell_integration().await {
         display_warning(&format!("Failed to setup development shell integration: {}", e));
         println!("💡 You can manually setup _pm shell function later");

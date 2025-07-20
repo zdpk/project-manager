@@ -1,0 +1,11 @@
+/Users/x/github/zdpk/project-manager/test-extensions/target/debug/deps/libtokio_rustls-4610807464945f7c.rmeta: /Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/lib.rs /Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/client.rs /Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/common/mod.rs /Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/common/handshake.rs /Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/server.rs
+
+/Users/x/github/zdpk/project-manager/test-extensions/target/debug/deps/libtokio_rustls-4610807464945f7c.rlib: /Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/lib.rs /Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/client.rs /Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/common/mod.rs /Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/common/handshake.rs /Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/server.rs
+
+/Users/x/github/zdpk/project-manager/test-extensions/target/debug/deps/tokio_rustls-4610807464945f7c.d: /Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/lib.rs /Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/client.rs /Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/common/mod.rs /Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/common/handshake.rs /Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/server.rs
+
+/Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/lib.rs:
+/Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/client.rs:
+/Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/common/mod.rs:
+/Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/common/handshake.rs:
+/Users/x/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-rustls-0.25.0/src/server.rs:

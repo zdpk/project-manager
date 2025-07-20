@@ -1,0 +1,14 @@
+name: test-local
+version: 0.1.0
+description: Test extension for local installation
+author: testuser
+homepage: https://github.com/testuser/test-local
+pm_version: ">=0.1.0"
+type: bash
+commands:
+  - name: demo
+    help: Demo functionality of the extension
+    file: example.sh
+  - name: info
+    help: Show extension info
+    file: example.sh

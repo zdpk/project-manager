@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+
+"""
+SAMPLE-PYTHON-DEPLOY - Deployment automation tool for PM demonstration
+Author: PM Team
+Generated with PM Extension Template
+"""
+
+import argparse
+import os
+import sys
+from typing import Optional
+
+
+class Colors:
+    RED = '\033[0;31m'
+    GREEN = '\033[0;32m' 
+    YELLOW = '\033[1;33m'
+    BLUE = '\033[0;34m'
+    NC = '\033[0m'
+
+
+def print_info(message: str) -> None:
+    print(f"{Colors.BLUE}ℹ️  {message}{Colors.NC}")
+
+
+def print_success(message: str) -> None:
+    print(f"{Colors.GREEN}✅ {message}{Colors.NC}")
+
+
+def print_warning(message: str) -> None:
+    print(f"{Colors.YELLOW}⚠️  {message}{Colors.NC}")
+
+
+def print_error(message: str) -> None:
+    print(f"{Colors.RED}❌ {message}{Colors.NC}")
+
+
+def example_command(message: Optional[str] = None) -> None:
+    """Example command implementation."""
+    msg = message or "Hello from PM extension!"
+    print_success(msg)
+    
+    # Get PM context from environment
+    current_project = os.getenv('PM_CURRENT_PROJECT')
+    if current_project:
+        print_info(f"Current PM project: {current_project}")
+    
+    config_path = os.getenv('PM_CONFIG_PATH')
+    if config_path:
+        print_info(f"PM config: {config_path}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog='pm-ext-sample-python-deploy',
+        description='Deployment automation tool for PM demonstration'
+    )
+    
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    
+    # Example command
+    example_parser = subparsers.add_parser('example', help='Example command')
+    example_parser.add_argument(
+        '--message', '-m',
+        help='Custom message to display'
+    )
+    
+    args = parser.parse_args()
+    
+    if args.command == 'example':
+        example_command(args.message)
+    elif args.command is None:
+        print(f"🔧 SAMPLE-PYTHON-DEPLOY Extension")
+        print("📖 Use --help to see available commands")
+    else:
+        print_error(f"Unknown command: {args.command}")
+        parser.print_help()
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

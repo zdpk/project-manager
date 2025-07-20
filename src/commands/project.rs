@@ -194,10 +194,7 @@ async fn process_single_add(
         Vec::new() // For batch operations, no tags by default
     };
 
-    let git_updated_at = match get_last_git_commit_time(&absolute_path) {
-        Ok(time) => time,
-        Err(_) => None,
-    };
+    let git_updated_at = get_last_git_commit_time(&absolute_path).unwrap_or_default();
 
     let project = Project {
         id: Uuid::new_v4(),
@@ -237,7 +234,7 @@ async fn select_tags_interactive(config: &Config, project_name: &str) -> Result<
     match action.as_str() {
         s if s.starts_with("Create Project [") => {
             // User wants to create project without tags
-            return Ok(vec![]);
+            Ok(vec![])
         }
         "Add tags to this project" => {
             // Step 2A: Show existing tags for selection
@@ -249,7 +246,7 @@ async fn select_tags_interactive(config: &Config, project_name: &str) -> Result<
         }
         _ => {
             // Fallback - should not happen
-            return Ok(vec![]);
+            Ok(vec![])
         }
     }
 }
@@ -778,7 +775,7 @@ async fn check_gh_status() -> (bool, bool) {
     use std::process::Command;
     
     // Check if gh is installed
-    let gh_installed = match Command::new("gh").args(&["--version"]).output() {
+    let gh_installed = match Command::new("gh").args(["--version"]).output() {
         Ok(output) => {
             if output.status.success() {
                 if let Ok(version) = String::from_utf8(output.stdout) {
@@ -800,7 +797,7 @@ async fn check_gh_status() -> (bool, bool) {
     }
     
     // Check if gh is authenticated
-    let gh_authenticated = match Command::new("gh").args(&["auth", "status"]).output() {
+    let gh_authenticated = match Command::new("gh").args(["auth", "status"]).output() {
         Ok(output) => {
             if output.status.success() {
                 if let Ok(status) = String::from_utf8(output.stdout) {
@@ -825,7 +822,7 @@ async fn get_gh_token() -> Option<String> {
     use std::process::Command;
     
     let output = Command::new("gh")
-        .args(&["auth", "token"])
+        .args(["auth", "token"])
         .output()
         .ok()?;
     
@@ -844,7 +841,7 @@ pub async fn get_gh_username() -> Option<String> {
     use std::process::Command;
     
     let output = Command::new("gh")
-        .args(&["api", "user", "--jq", ".login"])
+        .args(["api", "user", "--jq", ".login"])
         .output()
         .ok()?;
     
@@ -864,7 +861,7 @@ pub async fn ensure_github_cli() -> Result<String> {
     
     // Check if gh is installed
     let gh_installed = Command::new("gh")
-        .args(&["--version"])
+        .args(["--version"])
         .output()
         .is_ok();
     

@@ -1,16 +1,11 @@
 use clap::{CommandFactory, Parser};
 use pm::{
-    handle_command, handle_config_error, utils, Cli, Commands, PmError, init
+    handle_command, handle_config_error, Cli, Commands, PmError, init
 };
 
 #[tokio::main]
 async fn main() {
-    // Development binary requires dev features
-    if !cfg!(feature = "dev") {
-        eprintln!("❌ Error: Development binary built without dev features!");
-        eprintln!("💡 Correct usage: cargo build --bin _pm --features dev");
-        std::process::exit(1);
-    }
+    // This is the development binary (_pm)
 
     // Development mode is always enabled for _pm binary
     std::env::set_var("PM_DEV_MODE", "true");

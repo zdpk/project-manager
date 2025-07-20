@@ -1,0 +1,31 @@
+name: sample-bash-hooks
+version: 0.1.0
+description: Sample Git hooks extension for PM demonstration
+author: PM Team
+homepage: https://github.com/PM Team/pm-ext-sample-bash-hooks
+repository: https://github.com/PM Team/pm-ext-sample-bash-hooks
+license: MIT
+
+pm:
+  min_version: "0.1.0"
+  commands:
+    - name: sample-bash-hooks
+      description: Sample Git hooks extension for PM demonstration
+      subcommands:
+        - name: example
+          description: Example command - replace with your extension's functionality
+
+build:
+  targets:
+  - os: darwin
+    arch: aarch64
+  - os: linux
+    arch: x86_64
+  - os: linux
+    arch: aarch64
+
+dependencies:
+  system: []
+  runtime: []
+
+created_at: 2025-07-19

@@ -1,0 +1,17 @@
+name: test-hooks
+version: 0.1.0
+description: Git hooks management with new structure
+author: PM Team
+homepage: https://github.com/PM Team/pm-ext-test-hooks
+pm_version: ">=0.1.0"
+type: bash
+commands:
+  - name: main
+    help: Main functionality of the extension
+    file: main.sh
+  - name: example
+    help: Example command demonstrating extension usage
+    file: example.sh
+  - name: help
+    help: Show extension help
+    file: help.sh

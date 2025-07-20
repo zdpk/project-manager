@@ -1,6 +1,28 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::fmt;
+
+/// Extension type enumeration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ExtensionType {
+    Bash,
+    Python,
+    Binary,
+    Mixed, // For extensions with multiple types
+}
+
+impl fmt::Display for ExtensionType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ExtensionType::Bash => write!(f, "bash"),
+            ExtensionType::Python => write!(f, "python"),
+            ExtensionType::Binary => write!(f, "binary"),
+            ExtensionType::Mixed => write!(f, "mixed"),
+        }
+    }
+}
 
 /// Extension manifest structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -11,6 +33,8 @@ pub struct ExtensionManifest {
     pub author: Option<String>,
     pub homepage: Option<String>,
     pub pm_version: Option<String>,
+    #[serde(rename = "type")]
+    pub extension_type: ExtensionType,
     pub commands: Vec<ExtensionCommand>,
 }
 
@@ -21,6 +45,11 @@ pub struct ExtensionCommand {
     pub help: String,
     pub aliases: Option<Vec<String>>,
     pub args: Option<Vec<String>>,
+    /// For mixed-type extensions, specify the command type
+    #[serde(rename = "type")]
+    pub command_type: Option<ExtensionType>,
+    /// File to execute (for bash/python), binary subcommand args (for binary)
+    pub file: Option<String>,
 }
 
 impl ExtensionManifest {
@@ -69,7 +98,7 @@ impl ExtensionManifest {
         
         // Validate commands
         for command in &self.commands {
-            command.validate()?;
+            command.validate(&self.extension_type)?;
         }
         
         // Check for duplicate command names
@@ -120,14 +149,29 @@ impl ExtensionManifest {
     pub fn find_command(&self, name: &str) -> Option<&ExtensionCommand> {
         self.commands.iter().find(|cmd| {
             cmd.name == name || 
-            cmd.aliases.as_ref().map_or(false, |aliases| aliases.contains(&name.to_string()))
+            cmd.aliases.as_ref().is_some_and(|aliases| aliases.contains(&name.to_string()))
         })
+    }
+    
+    /// Get the default file name for binary commands
+    pub fn get_default_binary_file() -> &'static str {
+        "main"
+    }
+    
+    /// Get the directory name for a given extension type
+    pub fn get_type_directory(extension_type: &ExtensionType) -> &'static str {
+        match extension_type {
+            ExtensionType::Bash => "bash",
+            ExtensionType::Python => "python",
+            ExtensionType::Binary => "bin",
+            ExtensionType::Mixed => panic!("Mixed type should not have a single directory"),
+        }
     }
 }
 
 impl ExtensionCommand {
     /// Validate command specification
-    pub fn validate(&self) -> Result<()> {
+    pub fn validate(&self, extension_type: &ExtensionType) -> Result<()> {
         if self.name.is_empty() {
             return Err(anyhow::anyhow!("Command name cannot be empty"));
         }
@@ -153,7 +197,76 @@ impl ExtensionCommand {
             }
         }
         
+        // Validate command type and file based on extension type
+        match extension_type {
+            ExtensionType::Mixed => {
+                // For mixed extensions, command_type must be specified
+                if self.command_type.is_none() {
+                    return Err(anyhow::anyhow!("Command type must be specified for mixed extensions"));
+                }
+                
+                // Validate file based on command type
+                if let Some(cmd_type) = &self.command_type {
+                    self.validate_file_for_type(cmd_type)?;
+                }
+            }
+            other_type => {
+                // For single-type extensions, validate file based on extension type
+                self.validate_file_for_type(other_type)?;
+            }
+        }
+        
         Ok(())
+    }
+    
+    /// Validate file specification for a given type
+    fn validate_file_for_type(&self, cmd_type: &ExtensionType) -> Result<()> {
+        match cmd_type {
+            ExtensionType::Bash => {
+                if let Some(file) = &self.file {
+                    if !file.ends_with(".sh") {
+                        return Err(anyhow::anyhow!("Bash command file must end with .sh: {}", file));
+                    }
+                } else {
+                    return Err(anyhow::anyhow!("Bash commands must specify a file"));
+                }
+            }
+            ExtensionType::Python => {
+                if let Some(file) = &self.file {
+                    if !file.ends_with(".py") {
+                        return Err(anyhow::anyhow!("Python command file must end with .py: {}", file));
+                    }
+                } else {
+                    return Err(anyhow::anyhow!("Python commands must specify a file"));
+                }
+            }
+            ExtensionType::Binary => {
+                // Binary commands don't require a file (defaults to "main")
+                // If file is specified, it should be a valid binary name
+                if let Some(file) = &self.file {
+                    if file.is_empty() {
+                        return Err(anyhow::anyhow!("Binary file name cannot be empty"));
+                    }
+                }
+            }
+            ExtensionType::Mixed => {
+                return Err(anyhow::anyhow!("Mixed type should not be validated directly"));
+            }
+        }
+        Ok(())
+    }
+    
+    /// Get the effective command type for this command
+    pub fn get_effective_type<'a>(&'a self, extension_type: &'a ExtensionType) -> &'a ExtensionType {
+        match extension_type {
+            ExtensionType::Mixed => self.command_type.as_ref().unwrap_or(extension_type),
+            other => other,
+        }
+    }
+    
+    /// Get the file to execute for this command
+    pub fn get_file(&self) -> Option<&str> {
+        self.file.as_deref()
     }
 }
 
@@ -206,5 +319,70 @@ mod tests {
         assert!(is_valid_version_requirement("~1.0.0"));
         assert!(!is_valid_version_requirement(">="));
         assert!(!is_valid_version_requirement("^"));
+    }
+    
+    #[test]
+    fn test_extension_type_display() {
+        assert_eq!(ExtensionType::Bash.to_string(), "bash");
+        assert_eq!(ExtensionType::Python.to_string(), "python");
+        assert_eq!(ExtensionType::Binary.to_string(), "binary");
+        assert_eq!(ExtensionType::Mixed.to_string(), "mixed");
+    }
+    
+    #[test]
+    fn test_extension_type_directory_mapping() {
+        assert_eq!(ExtensionManifest::get_type_directory(&ExtensionType::Bash), "bash");
+        assert_eq!(ExtensionManifest::get_type_directory(&ExtensionType::Python), "python");
+        assert_eq!(ExtensionManifest::get_type_directory(&ExtensionType::Binary), "bin");
+    }
+    
+    #[test]
+    fn test_extension_command_file_validation() {
+        let mut bash_cmd = ExtensionCommand {
+            name: "test".to_string(),
+            help: "Test command".to_string(),
+            aliases: None,
+            args: None,
+            command_type: None,
+            file: Some("test.sh".to_string()),
+        };
+        
+        // Should pass for bash extension
+        assert!(bash_cmd.validate(&ExtensionType::Bash).is_ok());
+        
+        // Should fail for bash with wrong extension
+        bash_cmd.file = Some("test.py".to_string());
+        assert!(bash_cmd.validate(&ExtensionType::Bash).is_err());
+        
+        // Should pass for python with .py extension
+        bash_cmd.file = Some("test.py".to_string());
+        assert!(bash_cmd.validate(&ExtensionType::Python).is_ok());
+    }
+    
+    #[test]
+    fn test_extension_command_effective_type() {
+        let bash_cmd = ExtensionCommand {
+            name: "test".to_string(),
+            help: "Test".to_string(),
+            aliases: None,
+            args: None,
+            command_type: None,
+            file: Some("test.sh".to_string()),
+        };
+        
+        // For single-type extension, should return extension type
+        assert_eq!(bash_cmd.get_effective_type(&ExtensionType::Bash), &ExtensionType::Bash);
+        
+        // For mixed extension with command type specified
+        let mixed_cmd = ExtensionCommand {
+            name: "test".to_string(),
+            help: "Test".to_string(),
+            aliases: None,
+            args: None,
+            command_type: Some(ExtensionType::Python),
+            file: Some("test.py".to_string()),
+        };
+        
+        assert_eq!(mixed_cmd.get_effective_type(&ExtensionType::Mixed), &ExtensionType::Python);
     }
 }

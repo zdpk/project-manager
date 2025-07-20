@@ -133,7 +133,8 @@ pub async fn load_config() -> Result<Config> {
     let path = get_config_path()?;
     if !path.exists() {
         return Err(anyhow::anyhow!(
-            "Configuration file not found. Run 'pm init' to initialize."
+            "Configuration file not found. Run '{} init' to initialize.",
+            crate::utils::get_binary_name()
         ));
     }
     let content = fs::read_to_string(path).await?;

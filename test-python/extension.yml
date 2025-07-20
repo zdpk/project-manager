@@ -1,0 +1,17 @@
+name: test-python
+version: 1.0.0
+description: Test Python extension for local installation testing
+author: testuser
+homepage: https://github.com/testuser/test-python
+pm_version: ">=0.1.0"
+type: python
+commands:
+  - name: deploy
+    help: Deploy using Python extension
+    file: main.py
+  - name: check
+    help: Check Python extension health
+    file: main.py
+  - name: config
+    help: Configure Python extension
+    file: main.py

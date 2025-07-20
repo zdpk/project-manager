@@ -1,0 +1,17 @@
+name: quick-test
+version: 0.1.0
+description: Quick test extension
+author: Test
+homepage: https://github.com/Test/pm-ext-quick-test
+pm_version: ">=0.1.0"
+type: bash
+commands:
+  - name: main
+    help: Main functionality of the extension
+    file: main.sh
+  - name: example
+    help: Example command demonstrating extension usage
+    file: example.sh
+  - name: help
+    help: Show extension help
+    file: help.sh

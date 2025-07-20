@@ -1,0 +1,2 @@
+# Python dependencies for test-python extension
+# No external dependencies required for this test extension

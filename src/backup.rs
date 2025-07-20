@@ -267,7 +267,7 @@ pub async fn get_latest_backup() -> Result<Option<BackupEntry>> {
 pub async fn is_backup_system_available() -> bool {
     match get_backup_dir() {
         Ok(backup_dir) => {
-            if let Err(_) = fs::create_dir_all(&backup_dir).await {
+            if (fs::create_dir_all(&backup_dir).await).is_err() {
                 return false;
             }
             true
@@ -279,7 +279,7 @@ pub async fn is_backup_system_available() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
+    
     
     #[tokio::test]
     async fn test_backup_metadata_serialization() {

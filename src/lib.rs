@@ -370,13 +370,18 @@ pub enum TemplateCommands {
 
 #[derive(Subcommand)]
 pub enum ExtensionAction {
+    /// Create a new extension
+    New,
     /// Install an extension
     Install {
-        /// Extension name
+        /// Extension name or path (use "." for current directory)
         name: String,
         /// Installation source (URL, GitHub repo, or local path)
         #[arg(long)]
         source: Option<String>,
+        /// Install from local directory path (supports relative paths)
+        #[arg(long)]
+        local: bool,
         /// Specific version to install
         #[arg(long)]
         version: Option<String>,
@@ -410,6 +415,14 @@ pub enum ExtensionAction {
     Search {
         /// Search query
         query: String,
+    },
+    /// Migrate legacy extensions to new folder structure
+    Migrate {
+        /// Extension name (migrate all if not specified)
+        name: Option<String>,
+        /// Perform migration without confirmation
+        #[arg(long)]
+        force: bool,
     },
 }
 

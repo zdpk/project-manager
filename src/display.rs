@@ -154,16 +154,18 @@ pub fn display_project_list_header(count: usize) {
 }
 
 pub fn display_no_projects() {
+    let binary_name = crate::utils::get_binary_name();
     println!("📋 No projects found");
-    println!("\n💡 {}", SUGGESTION_ADD_FIRST_PROJECT);
+    println!("\n💡 {}", SUGGESTION_ADD_FIRST_PROJECT.replace("{}", &binary_name));
 }
 
 pub fn display_no_matches() {
+    let binary_name = crate::utils::get_binary_name();
     println!("📋 No projects match your filters");
     println!("\n💡 Try:");
-    println!("  - No filters: pm ls");
-    println!("  - Longer time period: pm ls -r 30d");
-    println!("  - Different tags: pm ls --tags-any frontend,backend");
+    println!("  - No filters: {} ls", binary_name);
+    println!("  - Longer time period: {} ls -r 30d", binary_name);
+    println!("  - Different tags: {} ls --tags-any frontend,backend", binary_name);
 }
 
 pub fn display_switch_info(
@@ -191,7 +193,7 @@ pub fn display_suggestions(suggestions: &[String]) {
             println!("  - {}", suggestion);
         }
     } else {
-        println!("\n💡 {}", SUGGESTION_USE_PM_LS);
+        println!("\n💡 {}", SUGGESTION_USE_PM_LS.replace("{}", &crate::utils::get_binary_name()));
     }
 }
 

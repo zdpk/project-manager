@@ -45,5 +45,5 @@ pub const SUCCESS_PM_INITIALIZED: &str = "PM initialized successfully";
 pub const SUGGESTION_CHECK_PATH: &str = "Check if the path is correct";
 #[allow(dead_code)]
 pub const SUGGESTION_CREATE_DIRECTORY: &str = "Create the directory first";
-pub const SUGGESTION_USE_PM_LS: &str = "Use 'pm ls' to see all available projects";
-pub const SUGGESTION_ADD_FIRST_PROJECT: &str = "Add your first project with: pm add <path>";
+pub const SUGGESTION_USE_PM_LS: &str = "Use '{} ls' to see all available projects";
+pub const SUGGESTION_ADD_FIRST_PROJECT: &str = "Add your first project with: {} add <path>";

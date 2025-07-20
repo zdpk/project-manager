@@ -26,7 +26,7 @@ help:
 	@echo ""
 	@echo "Examples:"
 	@echo "  make run-prod -- init         # Run 'pm init'"
-	@echo "  make run-dev -- init          # Run '_pm init' (with dev features)"
+	@echo "  make run-dev -- init          # Run '_pm init' (development binary)"
 	@echo "  make run-prod -- add /path    # Run 'pm add /path'"
 
 # Build commands
@@ -37,7 +37,7 @@ build-prod:
 
 build-dev:
 	@echo "🔨 Building development binary..."
-	cargo build --bin _pm --features dev
+	cargo build --bin _pm
 	@echo "✅ Development binary built: target/debug/_pm"
 
 build-all: build-prod build-dev
@@ -49,7 +49,7 @@ run-prod:
 
 run-dev:
 	@echo "🚀 Running development binary..."
-	cargo run --bin _pm --features dev -- $(filter-out $@,$(MAKECMDGOALS))
+	cargo run --bin _pm -- $(filter-out $@,$(MAKECMDGOALS))
 
 # Install commands
 install-prod:
@@ -59,7 +59,7 @@ install-prod:
 
 install-dev:
 	@echo "📦 Installing development binary..."
-	cargo install --path . --bin _pm --features dev --force
+	cargo install --path . --bin _pm --force
 	@echo "✅ Development binary installed as '_pm'"
 
 # Test and maintenance

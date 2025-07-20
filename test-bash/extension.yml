@@ -1,0 +1,17 @@
+name: test-bash
+version: 1.0.0
+description: Test Bash extension for local installation testing
+author: testuser
+homepage: https://github.com/testuser/test-bash
+pm_version: ">=0.1.0"
+type: bash
+commands:
+  - name: run
+    help: Run the bash extension functionality
+    file: example.sh
+  - name: status
+    help: Show bash extension status
+    file: example.sh
+  - name: version
+    help: Show extension version
+    file: example.sh

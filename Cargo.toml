@@ -24,7 +24,30 @@ path = "src/bin/pm.rs"
 [[bin]]
 name = "_pm"
 path = "src/bin/_pm.rs"
-required-features = ["dev"]
+
+[[bin]]
+name = "create_sample_bash_extension"
+path = "test-extensions/create_sample_bash_extension.rs"
+
+[[bin]]
+name = "create_sample_python_extension"
+path = "test-extensions/create_sample_python_extension.rs"
+
+[[bin]]
+name = "create_sample_rust_extension"
+path = "test-extensions/create_sample_rust_extension.rs"
+
+[[bin]]
+name = "test-new-structure"
+path = "test-new-structure.rs"
+
+[[bin]]
+name = "create_test_new_bash"
+path = "create_test_new_bash.rs"
+
+[[bin]]
+name = "test_simple"
+path = "test_simple.rs"
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
@@ -46,3 +69,9 @@ git2 = "0.18"
 octocrab = "0.38"
 walkdir = "2.4"
 indicatif = "0.17"
+reqwest = { version = "0.11", features = ["json"] }
+thiserror = "1.0"
+
+[dev-dependencies]
+tempfile = "3.0"
+wiremock = "0.5"

@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# SAMPLE-BASH-HOOKS - Sample Git hooks extension for PM demonstration
+# Author: PM Team
+# Generated with PM Extension Template
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+print_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
+print_success() { echo -e "${GREEN}✅ $1${NC}"; }
+print_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
+print_error() { echo -e "${RED}❌ $1${NC}"; }
+
+# Show help
+show_help() {
+    echo "Usage: $0 [COMMAND] [OPTIONS]"
+    echo ""
+    echo "Commands:"
+    echo "  example    Example command"
+    echo "  help       Show this help"
+    echo ""
+    echo "PM Environment Variables:"
+    echo "  PM_CURRENT_PROJECT - Current project context"
+    echo "  PM_CONFIG_PATH     - PM configuration path"
+    echo "  PM_VERSION         - PM version"
+}
+
+# Example command
+example_command() {
+    local message="${1:-Hello from PM extension!}"
+    print_success "$message"
+    
+    if [ -n "$PM_CURRENT_PROJECT" ]; then
+        print_info "Current PM project: $PM_CURRENT_PROJECT"
+    fi
+    
+    if [ -n "$PM_CONFIG_PATH" ]; then
+        print_info "PM config: $PM_CONFIG_PATH"
+    fi
+}
+
+# Main script
+main() {
+    case "${1:-}" in
+        example)
+            shift
+            example_command "$@"
+            ;;
+        help|--help|-h)
+            show_help
+            ;;
+        "")
+            echo "🔧 sample-bash-hooks Extension"
+            echo "📖 Use --help to see available commands"
+            ;;
+        *)
+            print_error "Unknown command: $1"
+            echo ""
+            show_help
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
