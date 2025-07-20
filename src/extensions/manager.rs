@@ -445,18 +445,39 @@ async fn handle_uninstall(name: &str, force: bool) -> Result<()> {
         return Err(anyhow::anyhow!("Extension '{}' is not installed", name));
     }
     
+    // Show extension info before removal
+    if let Ok(info) = discovery::load_extension_info(name).await {
+        println!("🗑️  Removing extension: {} v{}", info.name, info.version);
+        println!("📁 Directory: {}", get_extension_dir(name)?.display());
+    }
+    
     if !force {
-        // TODO: Add confirmation prompt
-        println!("⚠️  This will remove extension '{}' and all its files", name);
-        println!("Use --force to skip this confirmation");
-        return Ok(());
+        println!("⚠️  This will permanently remove extension '{}' and all its files", name);
+        print!("Continue? [y/N]: ");
+        
+        use std::io::{self, Write};
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        
+        let answer = input.trim().to_lowercase();
+        if answer != "y" && answer != "yes" {
+            println!("❌ Extension removal cancelled");
+            return Ok(());
+        }
     }
     
     let ext_dir = get_extension_dir(name)?;
     fs::remove_dir_all(&ext_dir).await
         .with_context(|| format!("Failed to remove extension directory: {}", ext_dir.display()))?;
     
-    println!("✅ Extension '{}' has been uninstalled", name);
+    // Remove from local registry if it exists
+    if let Ok(mut local_registry) = crate::extensions::registry::load_registry().await {
+        local_registry.remove_extension(name);
+        let _ = crate::extensions::registry::save_registry(&local_registry).await;
+    }
+    
+    println!("✅ Extension '{}' has been removed successfully", name);
     
     Ok(())
 }

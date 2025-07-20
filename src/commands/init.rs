@@ -1,5 +1,5 @@
 use crate::backup::{BackupReason, create_backup, add_backup_entry};
-use crate::config::{get_config_path, save_config, Config, ConfigSettings};
+use crate::config::{get_config_path, get_config_dir, save_config, Config, ConfigSettings};
 use crate::constants::*;
 use crate::display::*;
 use crate::error::{handle_inquire_error, PmError};
@@ -71,9 +71,7 @@ pub async fn handle_init(
 
     // Step 1: Configuration directory setup
     let config_dir_path = {
-        let default_config_dir = dirs::home_dir()
-            .map(|home| home.join(".config").join("pm"))
-            .unwrap_or_else(|| PathBuf::from("~/.config/pm"));
+        let default_config_dir = get_config_dir()?;
 
         let config_input = handle_inquire_error(Text::new("Configuration directory:")
             .with_default(&default_config_dir.to_string_lossy())
@@ -121,9 +119,6 @@ pub async fn handle_init(
     
     // Show configuration file path info
     println!("📄 Configuration file: {}", config_path.display());
-    if utils::is_dev_mode() {
-        println!("   (Development mode - using separate config: config-dev.yml)");
-    }
     
     // Step 5: Shell integration setup with backup support (skip in dev mode)
     println!();
@@ -150,19 +145,6 @@ pub async fn handle_init(
     }
     
 
-    // Show next steps for using PM
-    println!("\n🎯 Next steps:");
-    println!("  pm add <path>          # Add your first project");
-    println!("  pm scan                # Scan for existing repositories");
-    println!("  pm clone <owner>/<repo> # Clone specific repository");
-    println!("  pm clone               # Browse and select repositories");
-    
-    if dev {
-        println!("\n🔧 Development mode enabled:");
-        println!("  _PM_BINARY environment variable configured in shell files");
-        println!("  _pm shell integration installed for development");
-        println!("  Use current development binary for testing");
-    }
     
     let binary_name = utils::get_binary_name();
     println!("\n📖 Use '{} --help' to see all available commands", binary_name);
@@ -207,53 +189,12 @@ async fn setup_shell_integration_with_backup(
     }
 }
 
-/// Setup development environment with _PM_BINARY
+/// Setup development environment
 async fn setup_dev_environment() -> Result<()> {
-    println!("🔧 Setting up development environment...");
-    
-    // Detect current binary path
-    let current_exe = std::env::current_exe()?;
-    let dev_binary_path = if current_exe.to_string_lossy().contains("target/debug") {
-        current_exe
-    } else {
-        // Try to guess development directory
-        let mut path = current_exe.clone();
-        path.pop(); // Remove binary name
-        
-        // Try to find target/debug/pm
-        let mut dev_path = path.clone();
-        dev_path.push("target");
-        dev_path.push("debug");
-        dev_path.push("pm");
-        
-        if dev_path.exists() {
-            dev_path
-        } else {
-            // Fallback to current exe
-            println!("⚠️  Could not detect development binary path, using current executable");
-            current_exe
-        }
-    };
-    
-    // Add environment variable to shell files
-    if let Err(e) = shell_integration::add_dev_env_to_shell_files(&dev_binary_path).await {
-        display_warning(&format!("Failed to add development environment to shell files: {}", e));
-        println!("💡 You can manually set _PM_BINARY environment variable");
-        println!("   export _PM_BINARY=\"{}\"", dev_binary_path.display());
-    }
-    
     // Setup development shell integration for _pm
-    println!("\n🔧 Setting up development shell integration...");
     if let Err(e) = shell_integration::setup_dev_shell_integration().await {
         display_warning(&format!("Failed to setup development shell integration: {}", e));
-        println!("💡 You can manually setup _pm shell function later");
-    } else {
-        println!("✅ Development shell integration installed");
-        println!("   You can now use '_pm' command for development");
     }
-    
-    println!("✅ Development environment configured");
-    println!("   _PM_BINARY set to: {}", dev_binary_path.display());
     
     Ok(())
 }
