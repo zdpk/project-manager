@@ -1,8 +1,8 @@
 use crate::extensions::{
     discovery, ensure_extensions_dir, find_extension_binary, 
-    get_extension_dir, ExtensionManifest, creation
+    get_extension_dir, ExtensionManifest, creation, remote, remote_install
 };
-use crate::ExtensionAction;
+use crate::{ExtensionAction, RegistryAction};
 use anyhow::{Context, Result};
 use std::path::Path;
 use std::process::Command;
@@ -31,8 +31,8 @@ pub async fn handle_extension_command(action: &ExtensionAction) -> Result<()> {
                 *non_interactive,
             ).await
         }
-        ExtensionAction::Install { name, source, version, local } => {
-            handle_install(name, source.as_deref(), version.as_deref(), *local).await
+        ExtensionAction::Install { name, source, version, local, registry, force } => {
+            handle_install(name, source.as_deref(), version.as_deref(), *local, registry.as_deref(), *force).await
         }
         ExtensionAction::Uninstall { name, force } => {
             handle_uninstall(name, *force).await
@@ -46,8 +46,11 @@ pub async fn handle_extension_command(action: &ExtensionAction) -> Result<()> {
         ExtensionAction::Update { name } => {
             handle_update(name.as_deref()).await
         }
-        ExtensionAction::Search { query } => {
-            handle_search(query).await
+        ExtensionAction::Search { query, registry, category, author, sort, limit } => {
+            handle_search(query, registry.as_deref(), category.as_deref(), author.as_deref(), sort.as_deref(), *limit).await
+        }
+        ExtensionAction::Registry { action } => {
+            handle_registry_command(action).await
         }
     }
 }
@@ -92,7 +95,7 @@ pub async fn execute_extension_command(args: &[String]) -> Result<()> {
 }
 
 /// Handle extension installation
-async fn handle_install(name: &str, source: Option<&str>, version: Option<&str>, local: bool) -> Result<()> {
+async fn handle_install(name: &str, source: Option<&str>, version: Option<&str>, local: bool, registry: Option<&str>, force: bool) -> Result<()> {
     // Ensure extensions directory exists
     ensure_extensions_dir().await?;
     
@@ -100,33 +103,8 @@ async fn handle_install(name: &str, source: Option<&str>, version: Option<&str>,
         // Local installation
         handle_local_install(name).await
     } else {
-        // Remote installation (placeholder)
-        println!("Installing extension '{}'...", name);
-        
-        // Check if extension is already installed
-        if discovery::is_extension_installed(name).await {
-            return Err(anyhow::anyhow!("Extension '{}' is already installed", name));
-        }
-        
-        // TODO: Implement actual remote installation logic
-        if let Some(source) = source {
-            println!("Would install from source: {}", source);
-        } else {
-            println!("Would install from default registry");
-        }
-        
-        if let Some(version) = version {
-            println!("Would install version: {}", version);
-        }
-        
-        // Create extension directory
-        let ext_dir = get_extension_dir(name)?;
-        fs::create_dir_all(&ext_dir).await?;
-        
-        println!("✅ Extension '{}' installation placeholder completed", name);
-        println!("📁 Extension directory: {}", ext_dir.display());
-        
-        Ok(())
+        // Remote installation
+        handle_remote_install(name, source, version, registry, force).await
     }
 }
 
@@ -573,15 +551,6 @@ async fn handle_update(name: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-/// Handle extension search
-async fn handle_search(query: &str) -> Result<()> {
-    println!("Searching for extensions matching '{}'...", query);
-    
-    // TODO: Implement search logic against registry
-    println!("  (Search functionality not yet implemented)");
-    
-    Ok(())
-}
 
 /// Resolve extension alias to actual extension name
 async fn resolve_extension_alias(input: &str) -> Result<String> {
@@ -677,4 +646,342 @@ async fn get_current_project_context() -> Result<String> {
     });
     
     Ok(context.to_string())
+}
+
+/// Handle remote extension installation
+async fn handle_remote_install(name: &str, _source: Option<&str>, version: Option<&str>, registry: Option<&str>, force: bool) -> Result<()> {
+    println!("Installing extension '{}' from registry...", name);
+    
+    // Check if extension is already installed
+    if !force && discovery::is_extension_installed(name).await {
+        return Err(anyhow::anyhow!("Extension '{}' is already installed. Use --force to reinstall", name));
+    }
+    
+    // Load registry manager
+    let registry_manager = remote::load_registry_manager().await
+        .context("Failed to load registry configuration")?;
+    
+    // Get registry client
+    let client = registry_manager.get_client(registry)
+        .context("Failed to get registry client")?;
+    
+    // Get extension metadata
+    let metadata = if let Some(version) = version {
+        client.get_extension_version(name, version).await
+    } else {
+        client.get_extension(name).await
+    }.context(format!("Failed to fetch extension '{}' from registry", name))?;
+    
+    println!("📦 Found extension: {} v{}", metadata.name, metadata.version);
+    println!("📝 Description: {}", metadata.description);
+    println!("👤 Author: {}", metadata.author.name);
+    
+    // Create temporary download directory
+    let temp_dir = tempfile::tempdir()
+        .context("Failed to create temporary directory")?;
+    let archive_path = temp_dir.path().join(format!("{}-{}.tar.gz", metadata.name, metadata.version));
+    
+    // Download extension archive
+    println!("⬇️  Downloading extension archive...");
+    client.download_extension(&metadata, &archive_path).await
+        .context("Failed to download extension archive")?;
+    
+    // Create extension directory
+    let ext_dir = get_extension_dir(&metadata.name)?;
+    if ext_dir.exists() && force {
+        fs::remove_dir_all(&ext_dir).await
+            .context("Failed to remove existing extension directory")?;
+    }
+    fs::create_dir_all(&ext_dir).await
+        .context("Failed to create extension directory")?;
+    
+    // Extract archive
+    println!("📦 Extracting archive...");
+    extract_archive(&archive_path, &ext_dir).await
+        .context("Failed to extract extension archive")?;
+    
+    // Install the extension (build if necessary)
+    install_extracted_extension(&ext_dir, &metadata).await
+        .context("Failed to install extracted extension")?;
+    
+    // Update local registry
+    let mut local_registry = crate::extensions::registry::load_registry().await?;
+    local_registry.add_extension(
+        metadata.name.clone(),
+        metadata.version.clone(),
+        Some(metadata.dist.tarball.clone())
+    );
+    crate::extensions::registry::save_registry(&local_registry).await?;
+    
+    println!("✅ Extension '{}' v{} installed successfully", metadata.name, metadata.version);
+    println!("📁 Extension directory: {}", ext_dir.display());
+    
+    // Show available commands
+    if !metadata.commands.is_empty() {
+        println!("🔧 Available commands: {}", metadata.commands.join(", "));
+    }
+    
+    Ok(())
+}
+
+/// Extract tar.gz archive
+async fn extract_archive(archive_path: &std::path::Path, target_dir: &std::path::Path) -> Result<()> {
+    use std::process::Command;
+    
+    let output = Command::new("tar")
+        .args(&[
+            "-xzf",
+            archive_path.to_str().context("Invalid archive path")?,
+            "-C",
+            target_dir.to_str().context("Invalid target directory")?,
+            "--strip-components=1"
+        ])
+        .output()
+        .context("Failed to execute tar command")?;
+    
+    if !output.status.success() {
+        return Err(anyhow::anyhow!(
+            "Failed to extract archive: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    
+    Ok(())
+}
+
+/// Install extracted extension (detect type and build if necessary)
+async fn install_extracted_extension(ext_dir: &std::path::Path, _metadata: &remote::RemoteExtensionMetadata) -> Result<()> {
+    // Check for different extension types and install accordingly
+    let cargo_toml = ext_dir.join("Cargo.toml");
+    let requirements_txt = ext_dir.join("requirements.txt");
+    let bash_dir = ext_dir.join("bash");
+    
+    if cargo_toml.exists() {
+        // Rust extension - build with cargo
+        println!("🦀 Building Rust extension...");
+        remote_install::install_rust_extension_from_extracted(ext_dir).await?;
+    } else if requirements_txt.exists() || ext_dir.join("python").exists() {
+        // Python extension
+        println!("🐍 Installing Python extension...");
+        remote_install::install_python_extension_from_extracted(ext_dir).await?;
+    } else if bash_dir.exists() {
+        // Bash extension
+        println!("🐚 Installing Bash extension...");
+        remote_install::install_bash_extension_from_extracted(ext_dir).await?;
+    } else {
+        return Err(anyhow::anyhow!("Unknown extension type - no Cargo.toml, requirements.txt, or bash/ directory found"));
+    }
+    
+    Ok(())
+}
+
+/// Updated handle_search function with registry support
+async fn handle_search(query: &str, registry: Option<&str>, category: Option<&str>, author: Option<&str>, sort: Option<&str>, limit: Option<u32>) -> Result<()> {
+    println!("🔍 Searching for extensions matching '{}'...", query);
+    
+    // Load registry manager
+    let registry_manager = remote::load_registry_manager().await
+        .context("Failed to load registry configuration")?;
+    
+    // Get registry client
+    let client = registry_manager.get_client(registry)
+        .context("Failed to get registry client")?;
+    
+    // Build search parameters
+    let params = remote::SearchParams {
+        query: Some(query.to_string()),
+        category: category.map(|s| s.to_string()),
+        author: author.map(|s| s.to_string()),
+        sort: sort.map(|s| s.to_string()),
+        limit,
+        ..Default::default()
+    };
+    
+    // Perform search
+    let results = client.search(&params).await
+        .context("Failed to search extensions")?;
+    
+    if results.extensions.is_empty() {
+        println!("No extensions found matching your criteria");
+        return Ok(());
+    }
+    
+    println!("\n📦 Found {} extension(s):", results.extensions.len());
+    println!();
+    
+    for ext in results.extensions {
+        println!("  {:<20} v{}", ext.name, ext.version);
+        println!("  {:<20} {}", "", ext.description);
+        println!("  {:<20} by {} • {} downloads", "", ext.author, ext.downloads);
+        if !ext.categories.is_empty() {
+            println!("  {:<20} Categories: {}", "", ext.categories.join(", "));
+        }
+        if !ext.keywords.is_empty() {
+            println!("  {:<20} Keywords: {}", "", ext.keywords.join(", "));
+        }
+        println!();
+    }
+    
+    println!("💡 To install: pm ext install <extension-name>");
+    if registry.is_some() {
+        println!("💡 To install from specific registry: pm ext install <extension-name> --registry {}", registry.unwrap());
+    }
+    
+    Ok(())
+}
+
+/// Handle registry management commands
+async fn handle_registry_command(action: &RegistryAction) -> Result<()> {
+    match action {
+        RegistryAction::Add { name, url, token, default } => {
+            handle_registry_add(name, url, token.as_deref(), *default).await
+        }
+        RegistryAction::Remove { name } => {
+            handle_registry_remove(name).await
+        }
+        RegistryAction::List => {
+            handle_registry_list().await
+        }
+        RegistryAction::Default { name } => {
+            handle_registry_default(name).await
+        }
+        RegistryAction::Ping { name } => {
+            handle_registry_ping(name.as_deref()).await
+        }
+    }
+}
+
+/// Add a new registry
+async fn handle_registry_add(name: &str, url: &str, token: Option<&str>, set_default: bool) -> Result<()> {
+    let mut registry_manager = remote::load_registry_manager().await?;
+    
+    // Parse URL
+    let parsed_url = url::Url::parse(url)
+        .context("Invalid registry URL")?;
+    
+    let config = remote::RegistryConfig {
+        name: name.to_string(),
+        url: parsed_url,
+        token: token.map(|s| s.to_string()),
+        default: set_default,
+    };
+    
+    // Test connectivity
+    let client = remote::RegistryClient::new(config.clone());
+    if !client.ping().await.unwrap_or(false) {
+        println!("⚠️  Warning: Could not connect to registry at {}", url);
+        println!("   The registry has been added but may not be accessible");
+    }
+    
+    registry_manager.add_registry(name.to_string(), config);
+    remote::save_registry_manager(&registry_manager).await?;
+    
+    println!("✅ Registry '{}' added successfully", name);
+    if set_default {
+        println!("🎯 Set as default registry");
+    }
+    
+    Ok(())
+}
+
+/// Remove a registry
+async fn handle_registry_remove(name: &str) -> Result<()> {
+    let mut registry_manager = remote::load_registry_manager().await?;
+    
+    if registry_manager.remove_registry(name).is_some() {
+        remote::save_registry_manager(&registry_manager).await?;
+        println!("✅ Registry '{}' removed successfully", name);
+    } else {
+        return Err(anyhow::anyhow!("Registry '{}' not found", name));
+    }
+    
+    Ok(())
+}
+
+/// List all configured registries
+async fn handle_registry_list() -> Result<()> {
+    let registry_manager = remote::load_registry_manager().await?;
+    let registries = registry_manager.list_registries();
+    
+    if registries.is_empty() {
+        println!("No registries configured");
+        return Ok(());
+    }
+    
+    println!("📋 Configured registries:");
+    println!();
+    
+    let default_registry = registry_manager.get_default_registry();
+    
+    for (name, config) in registries {
+        let is_default = Some(name) == default_registry;
+        let default_marker = if is_default { " (default)" } else { "" };
+        
+        println!("  {:<15} {}{}", name, config.url, default_marker);
+        if config.token.is_some() {
+            println!("  {:<15} 🔐 Authentication configured", "");
+        }
+    }
+    
+    Ok(())
+}
+
+/// Set default registry
+async fn handle_registry_default(name: &str) -> Result<()> {
+    let mut registry_manager = remote::load_registry_manager().await?;
+    
+    // Check if registry exists
+    if !registry_manager.list_registries().iter().any(|(reg_name, _)| reg_name == &name) {
+        return Err(anyhow::anyhow!("Registry '{}' not found", name));
+    }
+    
+    // Update default - collect registries first to avoid borrow issues
+    let registries: Vec<(String, remote::RegistryConfig)> = registry_manager.list_registries()
+        .into_iter()
+        .map(|(name, config)| (name.clone(), config.clone()))
+        .collect();
+    
+    for (reg_name, mut config) in registries {
+        config.default = reg_name == name;
+        registry_manager.add_registry(reg_name, config);
+    }
+    
+    remote::save_registry_manager(&registry_manager).await?;
+    
+    println!("✅ Registry '{}' set as default", name);
+    
+    Ok(())
+}
+
+/// Test registry connectivity
+async fn handle_registry_ping(name: Option<&str>) -> Result<()> {
+    let registry_manager = remote::load_registry_manager().await?;
+    
+    if let Some(name) = name {
+        // Test specific registry
+        let client = registry_manager.get_client(Some(name))?;
+        println!("🏓 Testing connectivity to registry '{}'...", name);
+        
+        if client.ping().await.unwrap_or(false) {
+            println!("✅ Registry '{}' is accessible", name);
+        } else {
+            println!("❌ Registry '{}' is not accessible", name);
+        }
+    } else {
+        // Test all registries
+        println!("🏓 Testing connectivity to all registries...");
+        println!();
+        
+        let registries = registry_manager.list_registries();
+        for (reg_name, config) in registries {
+            let client = remote::RegistryClient::new(config.clone());
+            if client.ping().await.unwrap_or(false) {
+                println!("  ✅ {} - accessible", reg_name);
+            } else {
+                println!("  ❌ {} - not accessible", reg_name);
+            }
+        }
+    }
+    
+    Ok(())
 }

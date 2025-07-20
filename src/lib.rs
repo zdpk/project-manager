@@ -178,6 +178,7 @@ pub enum Commands {
         action: ExtensionAction,
     },
 
+
     /// External extension commands
     #[command(external_subcommand)]
     External(Vec<String>),
@@ -410,6 +411,12 @@ pub enum ExtensionAction {
         /// Install from local directory path (supports relative paths)
         #[arg(long)]
         local: bool,
+        /// Registry to install from (defaults to configured registries)
+        #[arg(long)]
+        registry: Option<String>,
+        /// Force reinstallation if already installed
+        #[arg(long)]
+        force: bool,
     },
     /// Uninstall an extension
     Uninstall {
@@ -440,6 +447,62 @@ pub enum ExtensionAction {
     Search {
         /// Search query
         query: String,
+        /// Registry to search in (defaults to all configured registries)
+        #[arg(long)]
+        registry: Option<String>,
+        /// Filter by category
+        #[arg(long)]
+        category: Option<String>,
+        /// Filter by author
+        #[arg(long)]
+        author: Option<String>,
+        /// Sort results by (downloads, updated, created, name)
+        #[arg(long)]
+        sort: Option<String>,
+        /// Maximum number of results
+        #[arg(long)]
+        limit: Option<u32>,
+    },
+    /// Manage extension registries
+    Registry {
+        #[command(subcommand)]
+        action: RegistryAction,
+    },
+}
+
+
+/// Registry management actions
+#[derive(Subcommand)]
+pub enum RegistryAction {
+    /// Add a new registry
+    Add {
+        /// Registry name
+        name: String,
+        /// Registry URL
+        url: String,
+        /// Authentication token
+        #[arg(long)]
+        token: Option<String>,
+        /// Set as default registry
+        #[arg(long)]
+        default: bool,
+    },
+    /// Remove a registry
+    Remove {
+        /// Registry name
+        name: String,
+    },
+    /// List configured registries
+    List,
+    /// Set default registry
+    Default {
+        /// Registry name
+        name: String,
+    },
+    /// Test registry connectivity
+    Ping {
+        /// Registry name (defaults to all registries)
+        name: Option<String>,
     },
 }
 
