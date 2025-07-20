@@ -71,5 +71,15 @@ out/
 temp/
 
 # Added by cargo
-
 /target
+
+# Extension development and testing
+test-*/
+sample-*/
+quick-test-*/
+create_test_*.rs
+test_*.rs
+test-extensions/
+
+# Build artifacts
+*.rlib
