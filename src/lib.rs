@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -368,8 +368,35 @@ pub enum TemplateCommands {
     },
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum ExtensionType {
+    Bash,
+    Python,
+    Rust,
+}
+
 #[derive(Subcommand)]
 pub enum ExtensionAction {
+    /// Create a new extension
+    Create {
+        /// Extension name
+        name: String,
+        /// Extension type (bash, python, rust)
+        #[arg(short = 't', long, value_enum)]
+        ext_type: Option<ExtensionType>,
+        /// Target directory (defaults to current directory)
+        #[arg(short = 'd', long)]
+        directory: Option<PathBuf>,
+        /// Extension description
+        #[arg(short = 's', long)]
+        description: Option<String>,
+        /// Author name
+        #[arg(short, long)]
+        author: Option<String>,
+        /// Skip interactive prompts (use defaults)
+        #[arg(long)]
+        non_interactive: bool,
+    },
     /// Install an extension
     Install {
         /// Extension name or path (use "." for current directory)

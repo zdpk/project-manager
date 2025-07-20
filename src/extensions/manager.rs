@@ -1,6 +1,6 @@
 use crate::extensions::{
     discovery, ensure_extensions_dir, find_extension_binary, 
-    get_extension_dir, ExtensionManifest
+    get_extension_dir, ExtensionManifest, creation
 };
 use crate::ExtensionAction;
 use anyhow::{Context, Result};
@@ -21,6 +21,16 @@ impl ExtensionManager {
 /// Handle extension management commands
 pub async fn handle_extension_command(action: &ExtensionAction) -> Result<()> {
     match action {
+        ExtensionAction::Create { name, ext_type, directory, description, author, non_interactive } => {
+            creation::create_extension(
+                name.clone(),
+                *ext_type,
+                directory.clone(),
+                description.clone(),
+                author.clone(),
+                *non_interactive,
+            ).await
+        }
         ExtensionAction::Install { name, source, version, local } => {
             handle_install(name, source.as_deref(), version.as_deref(), *local).await
         }
@@ -160,8 +170,8 @@ async fn handle_local_install(name_or_path: &str) -> Result<()> {
         return Err(anyhow::anyhow!("Extension '{}' is already installed", extension_name));
     }
     
-    // Check for command conflicts
-    check_command_conflicts(&manifest).await?;
+    // Extension commands use namespaced structure (pm <extension> <command>)
+    // so there are no conflicts between different extensions
     
     // Determine extension type and install accordingly
     if let Some(ext_type) = determine_extension_type(&source_dir).await? {
@@ -180,25 +190,6 @@ async fn handle_local_install(name_or_path: &str) -> Result<()> {
     Ok(())
 }
 
-/// Check for command conflicts with existing extensions
-async fn check_command_conflicts(manifest: &ExtensionManifest) -> Result<()> {
-    let all_commands = discovery::list_all_extension_commands().await?;
-    let new_commands = manifest.get_all_command_names();
-    
-    let conflicts: Vec<String> = new_commands.iter()
-        .filter(|cmd| all_commands.contains_key(*cmd))
-        .cloned()
-        .collect();
-    
-    if !conflicts.is_empty() {
-        return Err(anyhow::anyhow!(
-            "Command conflicts detected: {}. These commands are already used by other extensions.", 
-            conflicts.join(", ")
-        ));
-    }
-    
-    Ok(())
-}
 
 /// Determine extension type from directory structure
 async fn determine_extension_type(source_dir: &Path) -> Result<Option<String>> {
