@@ -144,7 +144,7 @@ pub async fn create_backup(
     
     let file_type = if file_path.to_string_lossy().contains("config.yml") {
         BackupFileType::Config
-    } else if file_path.to_string_lossy().contains("pm.zsh") {
+    } else if file_path.to_string_lossy().contains("pm.sh") {
         BackupFileType::ShellIntegration(ShellType::Zsh)
     } else if file_path.to_string_lossy().contains("pm.fish") {
         BackupFileType::ShellIntegration(ShellType::Fish)
@@ -226,7 +226,7 @@ fn determine_file_type(file_path: &Path) -> BackupFileType {
     
     if path_str.contains("config.yml") {
         BackupFileType::Config
-    } else if path_str.contains("pm.zsh") {
+    } else if path_str.contains("pm.sh") {
         BackupFileType::ShellIntegration(ShellType::Zsh)
     } else if path_str.contains("pm.fish") {
         BackupFileType::ShellIntegration(ShellType::Fish)
@@ -301,7 +301,7 @@ mod tests {
         let config_path = Path::new("/home/user/.config/pm/config.yml");
         assert!(matches!(determine_file_type(config_path), BackupFileType::Config));
         
-        let zsh_path = Path::new("/home/user/.config/pm/pm.zsh");
+        let zsh_path = Path::new("/home/user/.config/pm/pm.sh");
         assert!(matches!(determine_file_type(zsh_path), BackupFileType::ShellIntegration(ShellType::Zsh)));
         
         let fish_path = Path::new("/home/user/.config/fish/functions/pm.fish");

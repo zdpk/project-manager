@@ -178,6 +178,15 @@ pub enum Commands {
         action: ExtensionAction,
     },
 
+    /// Run an installed extension (alias: r)
+    #[command(alias = "r")]
+    Run {
+        /// Extension name
+        extension: String,
+        /// Arguments to pass to the extension
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
 
     /// External extension commands
     #[command(external_subcommand)]
@@ -418,7 +427,8 @@ pub enum ExtensionAction {
         #[arg(long)]
         force: bool,
     },
-    /// Uninstall an extension
+    /// Uninstall an extension (alias: remove, rm)
+    #[command(alias = "remove", alias = "rm")]
     Uninstall {
         /// Extension name
         name: String,
@@ -631,6 +641,12 @@ pub async fn handle_command(command: &Commands) -> anyhow::Result<()> {
         Commands::Extension { action } => {
             // Handle extension management commands
             extensions::handle_extension_command(action).await
+        }
+        Commands::Run { extension, args } => {
+            // Handle explicit extension execution
+            let mut extension_args = vec![extension.clone()];
+            extension_args.extend(args.clone());
+            extensions::execute_extension_command(&extension_args).await
         }
         Commands::External(args) => {
             // Handle external extension commands

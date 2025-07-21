@@ -82,17 +82,8 @@ impl Default for Config {
 }
 
 pub fn get_config_path() -> Result<PathBuf> {
-    let home_dir = dirs::home_dir().context("Failed to find home directory")?;
-    let config_dir = home_dir.join(CONFIG_DIR_NAME);
-    let pm_dir = config_dir.join(CONFIG_SUBDIR_NAME);
-    
-    let config_filename = if crate::utils::is_dev_mode() {
-        "config-dev.yml"
-    } else {
-        CONFIG_FILENAME
-    };
-    
-    Ok(pm_dir.join(config_filename))
+    let config_dir = get_config_dir()?;
+    Ok(config_dir.join(CONFIG_FILENAME))
 }
 
 pub fn get_config_dir() -> Result<PathBuf> {
