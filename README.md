@@ -20,6 +20,8 @@ A fast, terminal-based project management CLI tool written in Rust. PM helps dev
 ### 🔌 Extension System
 - **Modular Architecture**: Lightweight core with extensible functionality
 - **No-Prefix Commands**: Extensions integrate seamlessly (`pm docker ps` not `pm-ext-docker`)
+- **Multiple Execution Methods**: Run extensions via `pm run`, `pm r`, or fast `pmr` shell alias
+- **Extension Discovery**: Built-in help and listing (`pm run ls`, `pm run help`)
 - **Easy Installation**: One-command extension installation and management
 - **Developer-Friendly**: Simple extension development in any language
 - **Cross-Platform**: Extensions work on Linux, macOS, and Windows
@@ -28,6 +30,12 @@ A fast, terminal-based project management CLI tool written in Rust. PM helps dev
 - **pm-ext-hooks**: Enhanced Git hooks with `.githook/` directory support
 - **pm-ext-direnv**: Auto-activation direnv environment management  
 - **pm-ext-1password**: Secure `.pw.yml` → `.env` file generation
+
+### Remote Extension Registry (Planned)
+- **Extension Search**: `pm ext search <query>` to find extensions
+- **Remote Installation**: `pm ext install <name>` from central registry
+- **Registry Management**: Multiple registry support with `pm ext registry` commands
+- **Automatic Updates**: Keep extensions up-to-date with `pm ext update`
 
 > **Migration Notice**: Built-in hooks and direnv features have been moved to extensions. See [Migration Guide](docs/MIGRATION_GUIDE.md) for upgrade instructions.
 
@@ -116,6 +124,16 @@ pm ext list                    # List installed extensions
 pm ext install hooks           # Install hooks extension
 pm ext install direnv          # Install direnv extension  
 pm ext install 1password       # Install 1Password extension
+
+# Run extensions (multiple ways)
+pm run a example              # Explicit extension execution
+pm r a example                # Using alias 'r'
+pmr a example                 # Using shell alias (fastest)
+
+# Extension discovery and help
+pm run ls                     # List all installed extensions
+pm run help                   # Show extension usage help
+pmr ls                        # List extensions (shell alias)
 
 # Use extensions (no prefix required)
 pm hooks status               # Check Git hooks status

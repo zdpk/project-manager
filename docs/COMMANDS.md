@@ -683,6 +683,179 @@ pm config set settings.show_git_status true # Set specific value
 *   `export`: Export configuration
 *   `import`: Import configuration
 
+### `pm ext` (alias: `pm extension`)
+
+Manage PM extensions for extending functionality.
+
+**Usage:**
+
+```bash
+pm ext list                          # List installed extensions
+pm ext install <name>                # Install extension from registry
+pm ext install . --local             # Install from current directory
+pm ext uninstall <name>              # Remove extension
+pm ext info <name>                   # Show extension information
+pm ext search <query>                # Search for extensions (planned)
+pm ext update [name]                 # Update extensions (planned)
+```
+
+**Subcommands:**
+
+#### `pm ext list` (alias: `pm ext ls`)
+
+List all installed extensions with their information.
+
+```bash
+pm ext list
+📦 Installed extensions:
+
+  a                 /Users/user/.config/pm/extension/a
+    Version: 0.1.0
+    Description: A bash extension for PM
+    Commands: example
+```
+
+#### `pm ext install <name>`
+
+Install an extension from various sources.
+
+**Options:**
+* `--local`: Install from local directory (supports `.` for current directory)
+* `--source <url>`: Install from specific URL or path
+* `--version <version>`: Install specific version (planned)
+* `--registry <registry>`: Install from specific registry (planned)
+* `--force`: Force reinstallation if already installed
+
+**Examples:**
+```bash
+pm ext install hooks                 # Install from registry (planned)
+pm ext install . --local            # Install from current directory
+pm ext install ../my-ext --local    # Install from relative path
+pm ext install /path/to/ext --local # Install from absolute path
+```
+
+#### `pm ext uninstall <name>` (aliases: `remove`, `rm`)
+
+Remove an installed extension with confirmation.
+
+```bash
+pm ext uninstall hooks
+🗑️  Removing extension: hooks v1.0.0
+📁 Directory: /Users/user/.config/pm/extension/hooks
+⚠️  This will permanently remove extension 'hooks' and all its files
+Continue? [y/N]: y
+✅ Extension 'hooks' has been removed successfully
+```
+
+#### `pm ext info <name>`
+
+Show detailed information about an installed extension.
+
+```bash
+pm ext info a
+📦 Extension: a
+Version: 0.1.0
+Description: A bash extension for PM
+Author: zdpk
+Location: /Users/user/.config/pm/extension/a
+
+Commands:
+  example    Example command - replace with your functionality
+```
+
+### `pm ext registry` (Planned)
+
+Manage extension registries for remote installation.
+
+**Usage:**
+
+```bash
+pm ext registry list                 # List configured registries
+pm ext registry add <name> <url>     # Add new registry
+pm ext registry remove <name>        # Remove registry
+pm ext registry default <name>       # Set default registry
+pm ext registry ping [name]          # Test registry connectivity
+```
+
+The remote extension system is fully implemented and ready for use once the registry server infrastructure is available.
+
+### `pm run` (alias: `pm r`)
+
+Execute installed extensions with built-in discovery and help features.
+
+**Usage:**
+
+```bash
+pm run <extension> [args...]         # Run extension with arguments
+pm r <extension> [args...]           # Using alias 'r'
+pmr <extension> [args...]            # Using shell alias (fastest)
+
+# Discovery and help
+pm run ls                            # List all installed extensions
+pm run help                          # Show extension usage help
+pm run <extension> help              # Show help for specific extension
+```
+
+**Arguments:**
+
+* `<EXTENSION>`: Extension name to execute
+* `[ARGS]...`: Arguments to pass to the extension
+
+**Special Commands:**
+
+* `ls`, `list`: Display all installed extensions with their commands
+* `help`, `-h`, `--help`: Show extension usage and available extensions
+
+**Behavior:**
+
+* Resolves extension aliases to actual names automatically
+* Provides environment variables to extensions (PM_CONFIG_PATH, PM_CURRENT_PROJECT, etc.)
+* Offers multiple execution methods for different use cases:
+  - `pm run`: Explicit, verbose form
+  - `pm r`: Quick alias
+  - `pmr`: Shell alias for fastest execution
+
+**Shell Alias Integration:**
+
+The `pmr` shell alias is automatically set up during `pm init`:
+- **Development**: `_pmr` (uses `_pm` binary)
+- **Production**: `pmr` (uses `pm` binary)
+
+**Extension Discovery Output:**
+
+```bash
+$ pm run ls
+📦 Installed Extensions:
+  a (v0.1.0)    A bash extension for PM
+    Commands:
+      example    Example command - replace with your functionality
+
+Use 'pm run <extension> <command>' to execute extension commands
+```
+
+**Extension Help Output:**
+
+```bash
+$ pm run help
+PM Run - Execute installed extensions
+
+Usage: pm run <EXTENSION> [ARGS...]
+       pm run ls           # List available extensions
+       pm run help         # Show this help
+
+Available Extensions:
+  a (v0.1.0)    A bash extension for PM
+    └─ example    Example command - replace with your functionality
+
+Examples:
+  pm run a example      # Run 'example' command from extension 'a'
+  _pmr a example        # Same as above (shell alias)
+
+Options:
+  -h, --help, help      Print this help
+  ls, list              List available extensions
+```
+
 ## Command Aliases Quick Reference
 
 | Command | Alias | Description |
@@ -696,6 +869,8 @@ pm config set settings.show_git_status true # Set specific value
 | `pm scan` | `pm sc` | Scan for existing repositories |
 | `pm tag` | `pm t` | Manage project tags |
 | `pm config` | `pm cf` | Configuration management |
+| `pm run` | `pm r` | Execute extensions with discovery |
+| `pm ext` | `pm extension` | Manage extensions (install, remove, list) |
 
 ## Interactive Features
 

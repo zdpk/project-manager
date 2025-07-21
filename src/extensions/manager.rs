@@ -1006,3 +1006,75 @@ async fn handle_registry_ping(name: Option<&str>) -> Result<()> {
     
     Ok(())
 }
+
+/// Show help for pm run command with available extensions
+pub async fn show_run_help() -> Result<()> {
+    println!("PM Run - Execute installed extensions");
+    println!();
+    println!("Usage: pm run <EXTENSION> [ARGS...]");
+    println!("       pm run ls           # List available extensions");
+    println!("       pm run help         # Show this help");
+    println!();
+    
+    let extensions = discovery::discover_extensions().await?;
+    
+    if extensions.is_empty() {
+        println!("No extensions installed.");
+        println!("Install extensions with: pm ext install <name>");
+    } else {
+        println!("Available Extensions:");
+        let mut sorted_extensions: Vec<_> = extensions.iter().collect();
+        sorted_extensions.sort_by_key(|(name, _)| name.as_str());
+        
+        for (name, info) in sorted_extensions {
+            println!("  {} (v{})    {}", name, info.version, info.description);
+            for cmd in &info.commands {
+                let help_text = if cmd.help.is_empty() { "No description" } else { &cmd.help };
+                println!("    └─ {}    {}", cmd.name, help_text);
+            }
+        }
+    }
+    
+    println!();
+    println!("Examples:");
+    println!("  pm run a example      # Run 'example' command from extension 'a'");
+    println!("  _pmr a example        # Same as above (shell alias)");
+    println!();
+    println!("Options:");
+    println!("  -h, --help, help      Print this help");
+    println!("  ls, list              List available extensions");
+    
+    Ok(())
+}
+
+/// List installed extensions (for pm run ls command)
+pub async fn list_extensions() -> Result<()> {
+    let extensions = discovery::discover_extensions().await?;
+    
+    if extensions.is_empty() {
+        println!("No extensions installed.");
+        println!("Install extensions with: pm ext install <name>");
+        return Ok(());
+    }
+    
+    println!("📦 Installed Extensions:");
+    let mut sorted_extensions: Vec<_> = extensions.iter().collect();
+    sorted_extensions.sort_by_key(|(name, _)| name.as_str());
+    
+    for (name, info) in sorted_extensions {
+        println!("  {} (v{})    {}", name, info.version, info.description);
+        
+        if !info.commands.is_empty() {
+            println!("    Commands:");
+            for cmd in &info.commands {
+                let help_text = if cmd.help.is_empty() { "No description" } else { &cmd.help };
+                println!("      {}    {}", cmd.name, help_text);
+            }
+        }
+    }
+    
+    println!();
+    println!("Use 'pm run <extension> <command>' to execute extension commands");
+    
+    Ok(())
+}
