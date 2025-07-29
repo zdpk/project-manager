@@ -8,7 +8,7 @@ pub mod remote_install;
 
 pub use discovery::{discover_extensions, find_extension_binary};
 pub use manifest::{ExtensionManifest, ExtensionCommand};
-pub use manager::{ExtensionManager, handle_extension_command, execute_extension_command};
+pub use manager::{ExtensionManager, handle_extension_command, execute_extension_command, show_run_help, list_extensions};
 pub use registry::ExtensionRegistry;
 pub use remote::{RegistryManager, RegistryClient, RemoteExtensionMetadata, SearchParams};
 

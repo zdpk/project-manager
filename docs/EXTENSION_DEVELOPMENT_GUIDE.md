@@ -4,6 +4,17 @@
 
 This guide helps developers create extensions for PM (Project Manager). Extensions are standalone executables that integrate seamlessly with PM's CLI interface.
 
+## Extension Execution Methods
+
+PM provides multiple ways to execute extensions:
+
+1. **Direct execution**: `pm my-extension start` (traditional method)
+2. **Explicit run**: `pm run my-extension start` (new explicit method)
+3. **Run alias**: `pm r my-extension start` (quick alias)
+4. **Shell alias**: `pmr my-extension start` (fastest shell alias)
+
+All methods are equivalent and provide the same environment variables and functionality.
+
 ## Quick Start
 
 ### 1. Extension Structure
@@ -386,6 +397,68 @@ Users can install by extracting to their extension directory.
 1. Create repository: `pm-ext-my-extension`
 2. Add your source code
 3. Create releases with binary assets
+
+## Extension Discovery and Help
+
+PM provides built-in discovery features for installed extensions:
+
+### Extension Listing
+
+Users can see all installed extensions with their commands:
+
+```bash
+# List all installed extensions
+pm run ls
+
+# Output example:
+📦 Installed Extensions:
+  my-extension (v1.0.0)    My awesome PM extension
+    Commands:
+      start    Start the service
+      stop     Stop the service (aliases: halt)
+      status   Show service status [service-name]
+
+Use 'pm run <extension> <command>' to execute extension commands
+```
+
+### Extension Help
+
+Users can get help for the extension system:
+
+```bash
+# Show extension system help
+pm run help
+
+# Output includes:
+# - Usage instructions
+# - List of all available extensions
+# - Example commands
+# - Available execution methods (pm run, pm r, pmr)
+```
+
+### Best Practices for Discovery
+
+1. **Clear Command Names**: Use descriptive command names that clearly indicate their purpose
+2. **Helpful Descriptions**: Write concise but informative help text in manifest.yml
+3. **Consistent Aliases**: Use common aliases (e.g., "rm" for remove, "ls" for list)
+4. **Argument Documentation**: Document expected arguments in the manifest
+
+### Testing Discovery
+
+Test that your extension appears correctly in discovery:
+
+```bash
+# Verify extension appears in listing
+pm run ls | grep my-extension
+
+# Check help output includes your extension
+pm run help | grep my-extension
+
+# Test with different execution methods
+pm run my-extension status
+pm r my-extension status
+pmr my-extension status
+```
 4. Users install with: `pm ext install my-extension --source github:user/pm-ext-my-extension`
 
 ### Package Structure

@@ -643,10 +643,21 @@ pub async fn handle_command(command: &Commands) -> anyhow::Result<()> {
             extensions::handle_extension_command(action).await
         }
         Commands::Run { extension, args } => {
-            // Handle explicit extension execution
-            let mut extension_args = vec![extension.clone()];
-            extension_args.extend(args.clone());
-            extensions::execute_extension_command(&extension_args).await
+            // Check for special commands
+            match extension.as_str() {
+                "-h" | "--help" | "help" => {
+                    extensions::show_run_help().await
+                }
+                "ls" | "list" => {
+                    extensions::list_extensions().await
+                }
+                _ => {
+                    // Handle normal extension execution
+                    let mut extension_args = vec![extension.clone()];
+                    extension_args.extend(args.clone());
+                    extensions::execute_extension_command(&extension_args).await
+                }
+            }
         }
         Commands::External(args) => {
             // Handle external extension commands
