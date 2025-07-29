@@ -83,3 +83,8 @@ test-extensions/
 
 # Build artifacts
 *.rlib
+
+# NPM package artifacts
+/npm/dist
+/npm/node_modules
+/npm/bin

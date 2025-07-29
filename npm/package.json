@@ -1,0 +1,36 @@
+{
+  "name": "@zdpk/pm",
+  "version": "0.1.0",
+  "description": "A project manager CLI tool powered by Rust.",
+  "main": "dist/cli.js",
+  "types": "dist/cli.d.ts",
+  "bin": {
+    "pm": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "postinstall": "node dist/install.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "pm",
+    "project-manager",
+    "cli",
+    "rust"
+  ],
+  "author": "zdpk",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "decompress": "^4.2.1",
+    "node-fetch": "^3.3.2"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ]
+}

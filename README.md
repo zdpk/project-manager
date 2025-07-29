@@ -61,6 +61,24 @@ sudo mv pm /usr/local/bin/
 
 > **Note**: Currently only macOS Apple Silicon is supported.
 
+### Option 4: Install via npm (Recommended for Node.js users)
+
+If you have Node.js and npm installed, you can install `pm` globally or use `npx` for temporary execution.
+
+**Global Installation (recommended for frequent use):**
+```bash
+npm install -g @zdpk/pm
+```
+After global installation, you can run `pm` directly from your terminal:
+```bash
+pm --help
+```
+
+**Temporary Execution (for one-off use or testing):**
+```bash
+npx @zdpk/pm --help
+```
+
 ### Option 3: Build from Source
 
 #### Prerequisites
