@@ -23,7 +23,8 @@
   "type": "commonjs",
   "devDependencies": {
     "@types/node": "^24.1.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "@types/decompress": "^4.2.4"
   },
   "dependencies": {
     "decompress": "^4.2.1",
