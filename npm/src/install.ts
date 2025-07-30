@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import fetch from 'node-fetch';
-import decompress from 'decompress';
+import decompress, { File as DecompressFile } from 'decompress';
 
 const REPO_OWNER = 'zdpk';
 const REPO_NAME = 'project-manager';
@@ -57,7 +57,7 @@ async function downloadAndExtractBinary() {
         }
 
         await decompress(buffer, BIN_DIR, {
-            filter: file => file.path.includes('pm') || file.path.includes('pm.exe'),
+            filter: (file: DecompressFile) => file.path.includes('pm') || file.path.includes('pm.exe'),
             strip: 1 // Remove the top-level directory inside the archive
         });
 
