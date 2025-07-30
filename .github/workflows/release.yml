@@ -10,42 +10,22 @@ on:
         description: 'Release tag (e.g., v1.0.0)'
         required: true
         type: string
-      platforms:
-        description: 'Platforms to build: macos-arm64,linux-x64,linux-arm64,windows-x64,windows-arm64 or "all"'
-        required: false
-        default: 'all'
-        type: string
-      binaries:
-        description: 'Binaries to build: pm,_pm or "all"'
-        required: false
-        default: 'pm,_pm'
-        type: string
-      rust_version:
-        description: 'Rust toolchain version (e.g., stable, 1.70.0, nightly)'
-        required: false
-        default: 'stable'
-        type: string
-      node_version:
-        description: 'Node.js version for NPM publishing (e.g., 18, 20, latest)'
-        required: false
-        default: '18'
-        type: string
 
 permissions:
   contents: write
 
 jobs:
   release:
-    uses: zdpk/actions/.github/workflows/rust-release.yml@main
+    uses: zdpk/actions/.github/workflows/rust-npm-publish.yml@v1
     with:
-      binaries: ${{ github.event.inputs.binaries || 'pm,_pm' }}
-      platforms: ${{ github.event.inputs.platforms || 'all' }}
+      binaries: 'pm'
+      platforms: 'macos-arm64'
       main_binary: pm
       npm_enabled: true
       npm_directory: npm
       tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-      rust_version: ${{ github.event.inputs.rust_version || 'stable' }}
-      node_version: ${{ github.event.inputs.node_version || '18' }}
+      rust_version: 'stable'
+      node_version: '20'
     secrets:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -87,4 +87,6 @@ test-extensions/
 # NPM package artifacts
 /npm/dist
 /npm/node_modules
-/npm/bin
+/npm/binactions/
+actions/
+.tmp/
