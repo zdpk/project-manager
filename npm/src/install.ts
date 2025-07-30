@@ -3,10 +3,6 @@ import * as path from 'path';
 import * as os from 'os';
 import fetch from 'node-fetch';
 import decompress, { File as DecompressFile } from 'decompress';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import fetch from 'node-fetch';
 
 const REPO_OWNER = 'zdpk';
 const REPO_NAME = 'project-manager';
