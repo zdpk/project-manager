@@ -19,68 +19,106 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  release-macos:
+  release-macos-x64:
     runs-on: macos-latest
-    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Build for Apple Silicon
-        run: cargo build --release
-
+      - name: Build for macOS x64
+        run: cargo build --release --target x86_64-apple-darwin
       - name: Prepare binary
-        run: |
-          cp target/release/pm pm-aarch64-apple-darwin
-
+        run: cp target/x86_64-apple-darwin/release/pm pm-macos-x64
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-          files: |
-            pm-aarch64-apple-darwin
-            script/install.sh
-            script/install-portable.sh
+          files: pm-macos-x64
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  release-macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build for macOS ARM64
+        run: cargo build --release --target aarch64-apple-darwin
+      - name: Prepare binary
+        run: cp target/aarch64-apple-darwin/release/pm pm-macos-arm64
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: pm-macos-arm64
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  release-linux-x64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build for Linux x64
+        run: cargo build --release --target x86_64-unknown-linux-gnu
+      - name: Prepare binary
+        run: cp target/x86_64-unknown-linux-gnu/release/pm pm-linux-x64
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: pm-linux-x64
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  release-windows-x64:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build for Windows x64
+        run: cargo build --release --target x86_64-pc-windows-msvc
+      - name: Prepare binary
+        run: cp target/x86_64-pc-windows-msvc/release/pm.exe pm-windows-x64.exe
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: pm-windows-x64.exe
           token: ${{ secrets.GITHUB_TOKEN }}
 
   publish-npm:
     runs-on: ubuntu-latest
-    needs: release-macos
-    
+    needs: [release-macos-x64, release-macos-arm64, release-linux-x64, release-windows-x64]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           registry-url: 'https://registry.npmjs.org'
-
       - name: Extract version from Cargo.toml
         id: version
         run: |
           VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-
       - name: Update package.json version
         run: |
           cd npm
           npm version ${{ steps.version.outputs.version }} --no-git-tag-version
-
       - name: Install dependencies (skip scripts)
         run: |
           cd npm
           npm install --ignore-scripts
-
       - name: Build TypeScript
         run: |
           cd npm
           npm run build
-
       - name: Publish to NPM
         run: |
           cd npm

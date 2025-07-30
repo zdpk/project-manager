@@ -5,7 +5,7 @@
   "main": "dist/cli.js",
   "types": "dist/cli.d.ts",
   "bin": {
-    "pm": "dist/cli.js"
+    "pm": "bin/pm"
   },
   "scripts": {
     "build": "tsc",
@@ -32,7 +32,8 @@
   },
   "files": [
     "dist",
-    "bin"
+    "bin",
+    "scripts"
   ],
   "publishConfig": {
     "access": "public"
