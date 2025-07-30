@@ -9,8 +9,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "postinstall": "node dist/install.js",
-    "prepublishOnly": "npm run build"
+    "prepare": "npm run build",
+    "postpack": "echo 'Package ready for installation'"
   },
   "keywords": [
     "pm",
