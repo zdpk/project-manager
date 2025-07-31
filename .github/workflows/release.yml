@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   release:
-    uses: zdpk/actions/.github/workflows/rust-npm-publish.yml@v1
+    uses: ./.github/workflows/rust-npm-publish-local.yml
     with:
       binaries: 'pm'
       platforms: 'macos-arm64'
