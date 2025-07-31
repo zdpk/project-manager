@@ -1,0 +1,196 @@
+name: 'Rust NPM Publish'
+
+on:
+  workflow_call:
+    inputs:
+      binaries:
+        description: 'Comma-separated list of binary names to build. The first one is used for NPM. (e.g., pm,_pm or "all")'
+        required: true
+        type: string
+      include:
+        description: 'Platforms to build (e.g., macos-arm64,linux-x64,linux-arm64,windows-x64,windows-arm64 or "all")'
+        required: false
+        default: 'all'
+        type: string
+      exclude:
+        description: 'Platforms to exclude (e.g., windows-x64,linux-x64)'
+        required: false
+        default: ''
+        type: string
+      npm_directory:
+        description: 'Directory containing NPM project'
+        required: false
+        default: 'npm'
+        type: string
+      rust_version:
+        description: 'Rust toolchain version (e.g., stable, 1.70.0, nightly)'
+        required: false
+        default: 'stable'
+        type: string
+      node_version:
+        description: 'Node.js version for NPM publishing (e.g., 18, 20, lts/*, latest)'
+        required: false
+        default: 'lts/*'
+        type: string
+    secrets:
+      NPM_TOKEN:
+        description: 'NPM authentication token'
+        required: false
+      GH_TOKEN:
+        description: 'GitHub token for release (pass secrets.GITHUB_TOKEN here)'
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate-inputs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for conflicting inputs
+        if: "inputs.include != 'all' && inputs.exclude != ''"
+        run: |
+          echo "Error: 'include' and 'exclude' cannot be used at the same time." >&2
+          exit 1
+
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      binaries: ${{ steps.matrix.outputs.binaries }}
+      tag_name: ${{ steps.matrix.outputs.tag_name }}
+    steps:
+      - name: Prepare build matrix and binaries
+        id: matrix
+        run: |
+          # Determine tag name
+          tag_name="${{ github.ref_name }}"
+          echo "tag_name=$tag_name" >> $GITHUB_OUTPUT
+          
+          # Define all available platforms
+          all_platforms='[
+            {
+              "os": "macos-latest",
+              "platform": "macos",
+              "arch": "arm64",
+              "target": "aarch64-apple-darwin",
+              "cross_compile": false
+            },
+            {
+              "os": "ubuntu-latest",
+              "platform": "linux",
+              "arch": "x64",
+              "target": "x86_64-unknown-linux-gnu",
+              "cross_compile": false
+            },
+            {
+              "os": "ubuntu-latest",
+              "platform": "linux",
+              "arch": "arm64",
+              "target": "aarch64-unknown-linux-gnu",
+              "cross_compile": true
+            },
+            {
+              "os": "windows-latest",
+              "platform": "windows",
+              "arch": "x64",
+              "target": "x86_64-pc-windows-msvc",
+              "cross_compile": false
+            },
+            {
+              "os": "windows-latest",
+              "platform": "windows",
+              "arch": "arm64",
+              "target": "aarch64-pc-windows-msvc",
+              "cross_compile": false
+            }
+          ]'
+          
+          # Filter platforms based on include/exclude inputs
+          selected_platforms="[]"
+          if [ "${{ inputs.include }}" != "all" ]; then
+            IFS=',' read -ra INCLUDE_ARRAY <<< "${{ inputs.include }}"
+            for platform_arch in "${INCLUDE_ARRAY[@]}"; do
+              platform_arch=$(echo "$platform_arch" | xargs) # trim whitespace
+              matching_platform=$(echo "$all_platforms" | jq --arg pa "$platform_arch" '.[] | select(.platform + "-" + .arch == $pa)')
+              if [ -n "$matching_platform" ]; then
+                selected_platforms=$(echo "$selected_platforms" | jq ". += [$matching_platform]")
+              else
+                echo "Warning: Unknown platform '$platform_arch' in include list ignored" >&2
+              fi
+            done
+          else
+            selected_platforms="$all_platforms"
+          fi
+
+          if [ -n "${{ inputs.exclude }}" ]; then
+            IFS=',' read -ra EXCLUDE_ARRAY <<< "${{ inputs.exclude }}"
+            for platform_arch in "${EXCLUDE_ARRAY[@]}"; do
+              platform_arch=$(echo "$platform_arch" | xargs) # trim whitespace
+              selected_platforms=$(echo "$selected_platforms" | jq --arg pa "$platform_arch" 'map(select(.platform + "-" + .arch != $pa))')
+            done
+          fi
+          
+          matrix_json="{\"include\":$selected_platforms}"
+          echo "matrix=$matrix_json" >> $GITHUB_OUTPUT
+          
+          # Extract main_binary from binaries input
+          IFS=',' read -ra BINARY_ARRAY <<< "${{ inputs.binaries }}"
+          main_binary="${BINARY_ARRAY[0]}"
+          echo "main_binary=$main_binary" >> $GITHUB_OUTPUT
+          
+          echo "Selected platforms: $selected_platforms"
+          echo "Binaries to build: ${{ inputs.binaries }}"
+          echo "Main binary for NPM: $main_binary"
+          echo "Tag name: $tag_name"
+
+  # Build binaries for each platform
+  build:
+    needs: prepare-matrix
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Build Rust binaries
+        id: build
+        uses: ./actions/actions/rust-build
+        with:
+          target: ${{ matrix.target }}
+          binaries: ${{ needs.prepare-matrix.outputs.binaries }}
+          cross_compile: ${{ matrix.cross_compile }}
+          rust_version: ${{ inputs.rust_version }}
+          
+      - name: Upload to GitHub Release
+        uses: ./actions/actions/github-release
+        with:
+          tag_name: ${{ needs.prepare-matrix.outputs.tag_name }}
+          built_binaries: ${{ steps.build.outputs.built_binaries }}
+          platform: ${{ matrix.platform }}
+          arch: ${{ matrix.arch }}
+          token: ${{ secrets.GH_TOKEN }}
+
+  # Publish to NPM after all builds complete
+  publish-npm:
+    needs: [prepare-matrix, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Extract version from Cargo.toml
+        id: version
+        run: |
+          VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+          
+      - name: Publish to NPM
+        uses: ./actions/actions/npm-publish
+        with:
+          npm_directory: ${{ inputs.npm_directory }}
+          version: ${{ steps.version.outputs.version }}
+          npm_token: ${{ secrets.NPM_TOKEN }}
+          node_version: ${{ inputs.node_version }}

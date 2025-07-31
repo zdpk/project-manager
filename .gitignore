@@ -88,3 +88,4 @@ test-extensions/
 /npm/dist
 /npm/node_modules
 /npm/bin
+.tmp/

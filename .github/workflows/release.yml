@@ -9,81 +9,23 @@ on:
       tag:
         description: 'Release tag (e.g., v1.0.0)'
         required: true
-        default: 'v0.0.0-manual'
         type: string
 
 permissions:
   contents: write
 
-env:
-  CARGO_TERM_COLOR: always
-
 jobs:
-  release-macos:
-    runs-on: macos-latest
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Build for Apple Silicon
-        run: cargo build --release
-
-      - name: Prepare binary
-        run: |
-          cp target/release/pm pm-aarch64-apple-darwin
-
-      - name: Upload Release Asset
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-          files: |
-            pm-aarch64-apple-darwin
-            script/install.sh
-            script/install-portable.sh
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-  publish-npm:
-    runs-on: ubuntu-latest
-    needs: release-macos
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Extract version from Cargo.toml
-        id: version
-        run: |
-          VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Update package.json version
-        run: |
-          cd npm
-          npm version ${{ steps.version.outputs.version }} --no-git-tag-version
-
-      - name: Install dependencies (skip scripts)
-        run: |
-          cd npm
-          npm install --ignore-scripts
-
-      - name: Build TypeScript
-        run: |
-          cd npm
-          npm run build
-
-      - name: Publish to NPM
-        run: |
-          cd npm
-          npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  release:
+    uses: ./.github/workflows/rust-npm-publish-local.yml
+    with:
+      binaries: 'pm'
+      platforms: 'macos-arm64'
+      main_binary: pm
+      npm_enabled: true
+      npm_directory: npm
+      tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+      rust_version: 'stable'
+      node_version: '20'
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

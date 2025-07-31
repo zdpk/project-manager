@@ -1,0 +1,151 @@
+name: 'GitHub Release Assets Upload'
+description: 'Upload multiple assets to GitHub Release'
+inputs:
+  tag_name:
+    description: 'Release tag name'
+    required: true
+  built_binaries:
+    description: 'JSON array of built binary information from rust-build action'
+    required: true
+  platform:
+    description: 'Platform identifier (e.g., macos, linux, windows)'
+    required: true
+  arch:
+    description: 'Architecture identifier (e.g., arm64, x64)'
+    required: true
+  target:
+    description: 'Rust target triple (e.g., aarch64-apple-darwin)'
+    required: true
+  token:
+    description: 'GitHub token for release upload'
+    required: true
+outputs:
+  uploaded_assets:
+    description: 'List of uploaded asset names'
+    value: ${{ steps.upload.outputs.uploaded_assets }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Prepare and upload assets
+      id: upload
+      shell: bash
+      run: |
+        # Parse built binaries JSON
+        built_binaries='${{ inputs.built_binaries }}'
+        echo "Processing binaries: $built_binaries"
+        
+        # Prepare assets and file list
+        asset_files=""
+        uploaded_assets=""
+        
+        # Use jq to parse JSON if available, otherwise use basic parsing
+        if command -v jq >/dev/null 2>&1; then
+          # Use jq for robust JSON parsing
+          echo "$built_binaries" | jq -r '.[] | @base64' | while IFS= read -r binary_b64; do
+            binary_info=$(echo "$binary_b64" | base64 --decode)
+            binary_name=$(echo "$binary_info" | jq -r '.name')
+            source_path=$(echo "$binary_info" | jq -r '.source_path')
+            extension=$(echo "$binary_info" | jq -r '.extension')
+            
+            # Determine archive format and name based on target platform
+            if [[ "${{ inputs.target }}" == *"windows"* ]]; then
+              # Windows: use zip format
+              archive_name="${binary_name}-${{ inputs.target }}.zip"
+              # Copy binary to expected name and create zip
+              cp "$source_path" "${binary_name}${extension}"
+              zip "$archive_name" "${binary_name}${extension}"
+              rm "${binary_name}${extension}"
+            else
+              # Unix-like (macOS, Linux): use tar.gz format
+              archive_name="${binary_name}-${{ inputs.target }}.tar.gz"
+              # Create a temporary directory to match the expected archive structure
+              temp_dir="${binary_name}-temp"
+              mkdir -p "$temp_dir"
+              cp "$source_path" "$temp_dir/$binary_name"
+              # Create tar.gz with the binary at root level (strip: 1 will remove temp_dir)
+              tar -czf "$archive_name" -C "$temp_dir" "$binary_name"
+              rm -rf "$temp_dir"
+            fi
+            
+            # Add to file list
+            if [ -n "$asset_files" ]; then
+              asset_files="$asset_files,$archive_name"
+            else
+              asset_files="$archive_name"
+            fi
+            
+            # Add to uploaded assets list
+            if [ -n "$uploaded_assets" ]; then
+              uploaded_assets="$uploaded_assets,$archive_name"
+            else
+              uploaded_assets="$archive_name"
+            fi
+            
+            echo "Created archive: $archive_name from $source_path"
+          done
+        else
+          # Fallback: Basic parsing for simple cases
+          # Extract binary names (assuming format: [{"name":"pm",...},{"name":"_pm",...}])
+          binary_names=$(echo "$built_binaries" | sed 's/.*"name":"\([^"]*\)".*/\1/g')
+          
+          for binary_name in $binary_names; do
+            # Determine extension and source path based on target platform
+            if [[ "${{ inputs.target }}" == *"windows"* ]]; then
+              extension=".exe"
+              source_binary="${binary_name}.exe"
+              archive_name="${binary_name}-${{ inputs.target }}.zip"
+            else
+              extension=""
+              source_binary="$binary_name"
+              archive_name="${binary_name}-${{ inputs.target }}.tar.gz"
+            fi
+            
+            source_path="target/${{ inputs.target }}/release/$source_binary"
+            
+            # Check if source exists and create archive
+            if [ -f "$source_path" ]; then
+              if [[ "${{ inputs.target }}" == *"windows"* ]]; then
+                # Windows: create zip
+                cp "$source_path" "${binary_name}${extension}"
+                zip "$archive_name" "${binary_name}${extension}"
+                rm "${binary_name}${extension}"
+              else
+                # Unix-like: create tar.gz
+                temp_dir="${binary_name}-temp"
+                mkdir -p "$temp_dir"
+                cp "$source_path" "$temp_dir/$binary_name"
+                tar -czf "$archive_name" -C "$temp_dir" "$binary_name"
+                rm -rf "$temp_dir"
+              fi
+              
+              if [ -n "$asset_files" ]; then
+                asset_files="$asset_files,$archive_name"
+              else
+                asset_files="$archive_name"
+              fi
+              
+              if [ -n "$uploaded_assets" ]; then
+                uploaded_assets="$uploaded_assets,$archive_name"
+              else
+                uploaded_assets="$archive_name"
+              fi
+              
+              echo "Created archive: $archive_name from $source_path"
+            else
+              echo "Warning: Source binary not found: $source_path"
+            fi
+          done
+        fi
+        
+        # Store for next step
+        echo "asset_files=$asset_files" >> $GITHUB_ENV
+        echo "uploaded_assets=$uploaded_assets" >> $GITHUB_OUTPUT
+        echo "Assets to upload: $asset_files"
+        
+    - name: Upload to GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ inputs.tag_name }}
+        files: ${{ env.asset_files }}
+        token: ${{ inputs.token }}
